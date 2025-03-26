@@ -1,14 +1,14 @@
-FROM node:20-alpine AS base
+FROM oven/bun:1-alpine AS base
 
 # Install dependencies only when needed
 FROM base AS deps
 WORKDIR /app
 
-# Copy package.json and bun.lock (instead of package-lock.json)
+# Copy package.json and bun.lock
 COPY package.json bun.lock ./
 
 # Install dependencies
-RUN npm install
+RUN bun install --frozen-lockfile
 
 # Rebuild the source code only when needed
 FROM base AS builder
@@ -22,7 +22,7 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED 1
 
 # Build the application
-RUN npm run build
+RUN bun run build
 
 # Production image, copy all the files and run next
 FROM base AS runner
@@ -47,4 +47,4 @@ EXPOSE 3000
 
 ENV PORT 3000
 
-CMD ["node", "server.js"] 
+CMD ["bun", "server.js"] 
