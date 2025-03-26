@@ -9,7 +9,7 @@ export default function AuthLayout({
         <div className="mb-8 flex flex-col items-center text-center">
           <h1 className="text-3xl font-bold tracking-tight">Kogase</h1>
           <p className="text-sm text-muted-foreground">
-            Game Analytics Platform
+            Komu{"'"}s Game Service
           </p>
         </div>
         {children}
