@@ -2,7 +2,7 @@
  * Project related DTOs
  */
 
-import { Device, Event } from "@/models";
+import { Device, Event } from "@/lib/models";
 
 export interface CreateProjectRequest {
   name: string;

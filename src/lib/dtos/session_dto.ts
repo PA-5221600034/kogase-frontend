@@ -18,36 +18,20 @@ export interface EndSessionResponse {
   message: string;
 }
 
-export interface GetDeviceSessionsRequestQuery {
+export interface GetSessionsRequestQuery {
   project_id?: string;
   device_id?: string;
-  start_date?: string;
-  end_date?: string;
-  limit?: number;
-  offset?: number;
-}
-
-export interface GetProjectSessionsRequestQuery {
-  project_id?: string;
-  start_date?: string;
-  end_date?: string;
-  limit?: number;
-  offset?: number;
-}
-
-export interface GetAllSessionsRequestQuery {
-  start_date?: string;
-  end_date?: string;
+  from_date?: string;
+  to_date?: string;
   limit?: number;
   offset?: number;
 }
 
 export interface GetSessionResponse {
   session_id: string;
-  project_id: string;
-  device_id: string;
   begin_at: string;
   end_at: string;
+  duration: number;
 }
 
 export interface GetSessionsResponse {

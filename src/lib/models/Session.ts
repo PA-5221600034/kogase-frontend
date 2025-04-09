@@ -8,7 +8,7 @@ export interface Session {
   device_id: string;
   begin_at: string;
   end_at?: string;
-  duration?: number; // Duration in milliseconds
+  duration?: number;
   created_at: string;
   updated_at: string;
 } 

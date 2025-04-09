@@ -2,7 +2,7 @@
  * User related DTOs
  */
 
-import { Project } from "@/models";
+import { Project } from "@/lib/models";
 
 export interface CreateUserRequest {
   email: string;
