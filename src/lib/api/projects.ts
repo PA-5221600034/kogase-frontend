@@ -1,52 +1,42 @@
 import apiClient from './client';
-
-export interface Project {
-  id: string;
-  name: string;
-  description: string;
-  apiKey: string;
-  userId: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface CreateProjectRequest {
-  name: string;
-  description: string;
-}
-
-export interface UpdateProjectRequest {
-  name?: string;
-  description?: string;
-}
+import { 
+  CreateProjectRequest, 
+  CreateProjectResponse, 
+  GetProjectResponseDetail, 
+  GetProjectsResponse, 
+  UpdateProjectRequest, 
+  UpdateProjectResponse, 
+  DeleteProjectResponse, 
+  GetProjectResponse
+} from '../dtos/project_dto';
 
 export const projectsApi = {
-  getProjects: async (): Promise<Project[]> => {
-    const response = await apiClient.get<Project[]>('/projects');
+  getProjects: async (): Promise<GetProjectsResponse> => {
+    const response = await apiClient.get<GetProjectsResponse>('/projects');
     return response.data;
   },
   
-  getProject: async (id: string): Promise<Project> => {
-    const response = await apiClient.get<Project>(`/projects/${id}`);
+  getProject: async (id: string): Promise<GetProjectResponseDetail> => {
+    const response = await apiClient.get<GetProjectResponseDetail>(`/projects/${id}`);
     return response.data;
   },
   
-  createProject: async (data: CreateProjectRequest): Promise<Project> => {
-    const response = await apiClient.post<Project>('/projects', data);
+  createProject: async (data: CreateProjectRequest): Promise<CreateProjectResponse> => {
+    const response = await apiClient.post<CreateProjectResponse>('/projects', data);
     return response.data;
   },
   
-  updateProject: async (id: string, data: UpdateProjectRequest): Promise<Project> => {
-    const response = await apiClient.put<Project>(`/projects/${id}`, data);
+  updateProject: async (id: string, data: UpdateProjectRequest): Promise<UpdateProjectResponse> => {
+    const response = await apiClient.patch<UpdateProjectResponse>(`/projects/${id}`, data);
     return response.data;
   },
   
   deleteProject: async (id: string): Promise<void> => {
-    await apiClient.delete(`/projects/${id}`);
+    await apiClient.delete<DeleteProjectResponse>(`/projects/${id}`);
   },
-  
-  regenerateApiKey: async (id: string): Promise<{ apiKey: string }> => {
-    const response = await apiClient.post<{ apiKey: string }>(`/projects/${id}/regenerate-api-key`);
+
+  regenerateApiKey: async (id: string): Promise<GetProjectResponse> => {
+    const response = await apiClient.post<GetProjectResponse>(`/projects/${id}/apikey`);
     return response.data;
-  }
+  },
 }; 

@@ -20,7 +20,6 @@ export interface EndSessionResponse {
 
 export interface GetSessionsRequestQuery {
   project_id?: string;
-  device_id?: string;
   from_date?: string;
   to_date?: string;
   limit?: number;

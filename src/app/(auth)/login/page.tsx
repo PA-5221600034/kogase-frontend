@@ -34,12 +34,22 @@ export default function Login() {
 
   async function onSubmit(data: LoginFormData) {
     try {
+      toast.loading("Logging in...");
+      
       await login(data);
+      
+      toast.dismiss();
       toast.success("Logged in successfully!");
       router.push("/dashboard");
     } catch (error) {
+      toast.dismiss();
       console.error("Login error:", error);
-      toast.error("Failed to login. Please check your credentials.");
+      
+      if (error instanceof Error) {
+        toast.error(`Login failed: ${error.message}`);
+      } else {
+        toast.error("Failed to login. Please check your credentials.");
+      }
     }
   }
 

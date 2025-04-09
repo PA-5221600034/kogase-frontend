@@ -1,13 +1,21 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LucideHome, LucideBarChart2, LucideList, LucideSettings, LucideLogOut } from "lucide-react";
+import { LucideHome, LucideList, LucideLogOut } from "lucide-react";
 
 import { useAuth } from "@/lib/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { projectsApi } from "@/lib/api/projects";
+import { GetProjectResponse } from "@/lib/dtos/project_dto";
+
+interface Project {
+  id: string;
+  name: string;
+}
 
 export default function DashboardLayout({
   children,
@@ -17,12 +25,77 @@ export default function DashboardLayout({
   const router = useRouter();
   const pathname = usePathname();
   const { user, loading, logout } = useAuth();
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(true);
+  const [selectedProject, setSelectedProject] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && !user) {
       router.push("/login");
     }
   }, [user, loading, router]);
+
+  useEffect(() => {
+    async function loadProjects() {
+      setProjectsLoading(true);
+      try {
+        const data = await projectsApi.getProjects();
+        // Map API response to our Project interface
+        const formattedProjects = data.projects.map((project: GetProjectResponse) => ({
+          id: project.project_id,
+          name: project.name
+        }));
+        setProjects(formattedProjects);
+        
+        // Try to get the selected project from localStorage
+        const savedProject = localStorage.getItem('selectedProject');
+        if (savedProject && (savedProject === 'all' || data.projects.some(p => p.project_id === savedProject))) {
+          setSelectedProject(savedProject);
+        } else if (data.projects.length > 0) {
+          // Default to the first project if nothing is saved or saved project doesn't exist
+          setSelectedProject(data.projects[0].project_id);
+          localStorage.setItem('selectedProject', data.projects[0].project_id);
+        } else {
+          // Default to 'all' if no projects exist
+          setSelectedProject('all');
+          localStorage.setItem('selectedProject', 'all');
+        }
+      } catch (error) {
+        console.error('Error fetching projects:', error);
+        setProjects([]);
+        setSelectedProject('all');
+        localStorage.setItem('selectedProject', 'all');
+      } finally {
+        setProjectsLoading(false);
+      }
+    }
+
+    if (user) {
+      loadProjects();
+    }
+  }, [user]);
+
+  const handleProjectChange = (value: string) => {
+    setSelectedProject(value);
+    localStorage.setItem('selectedProject', value);
+    
+    // Dispatch a custom event to notify other components
+    const event = new CustomEvent('projectChanged', { detail: value });
+    window.dispatchEvent(event);
+    
+    // Refresh the current path
+    if (pathname.includes('?')) {
+      // If there are query parameters, update them
+      const baseUrl = pathname.split('?')[0];
+      const newPath = value === 'all' 
+        ? baseUrl
+        : `${baseUrl}?projectId=${value}`;
+      router.push(newPath);
+    } else {
+      // If there are no query parameters, just refresh the current page
+      router.refresh();
+    }
+  };
 
   const handleLogout = async () => {
     await logout();
@@ -60,26 +133,21 @@ export default function DashboardLayout({
     );
   }
 
+  // Get the selected project name for the dashboard label
+  const selectedProjectName = selectedProject === 'all' 
+    ? "Dashboard" 
+    : projects.find(p => p.id === selectedProject)?.name || "Dashboard";
+
   const navItems = [
     {
-      label: "Dashboard",
+      label: selectedProject === 'all' ? "Dashboard" : `${selectedProjectName}`,
       href: "/dashboard",
       icon: LucideHome,
     },
     {
-      label: "Analytics",
-      href: "/dashboard/analytics",
-      icon: LucideBarChart2,
-    },
-    {
-      label: "Events",
-      href: "/dashboard/events",
+      label: "Sessions",
+      href: "/dashboard/sessions",
       icon: LucideList,
-    },
-    {
-      label: "Settings",
-      href: "/dashboard/settings",
-      icon: LucideSettings,
     },
   ];
 
@@ -89,6 +157,23 @@ export default function DashboardLayout({
         <div className="container flex h-16 items-center justify-between">
           <div className="flex items-center gap-4">
             <h1 className="text-xl font-bold">Kogase</h1>
+            {!projectsLoading && (
+              <div className="w-64">
+                <Select value={selectedProject || ""} onValueChange={handleProjectChange}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="Select a project" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Projects</SelectItem>
+                    {projects.map((project) => (
+                      <SelectItem key={project.id} value={project.id}>
+                        {project.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-4">
             <span className="text-sm text-muted-foreground">
@@ -105,7 +190,7 @@ export default function DashboardLayout({
         <aside className="w-64 border-r pr-4 pt-8">
           <nav className="flex flex-col gap-2">
             {navItems.map((item) => {
-              const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+              const isActive = pathname === item.href;
               return (
                 <Link
                   key={item.href}
@@ -129,4 +214,4 @@ export default function DashboardLayout({
       </div>
     </div>
   );
-} 
+}
