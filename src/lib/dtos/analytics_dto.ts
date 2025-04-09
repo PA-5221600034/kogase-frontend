@@ -3,9 +3,9 @@
  */
 
 export interface GetAnalyticsRequestQuery {
-    project_id?: string;
-    from_date?: string;
-    to_date?: string;
+  project_id?: string;
+  from_date?: string;
+  to_date?: string;
 }
 
 export interface GetAnalyticsResponse {

@@ -1,7 +1,7 @@
 /**
  * Device model
  */
-import { Event } from './Event';
+import { Event } from '@/lib/models';
 
 export interface Device {
   id: string;

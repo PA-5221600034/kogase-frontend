@@ -1,8 +1,8 @@
 /**
  * Project model
  */
-import { Device } from './Device';
-import { Event } from './Event';
+
+import { Device, Event } from '@/lib/models';
 
 export interface Project {
   id: string;

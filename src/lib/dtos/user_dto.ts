@@ -15,11 +15,8 @@ export interface CreateUserResponse {
   name: string;
 }
 
-export interface GetUserResponseDetail {
-  user_id: string;
-  email: string;
-  name: string;
-  projects: Project[];
+export interface GetUsersResponse {
+  users: GetUserResponse[];
 }
 
 export interface GetUserResponse {
@@ -28,8 +25,8 @@ export interface GetUserResponse {
   name: string;
 }
 
-export interface GetUsersResponse {
-  users: GetUserResponse[];
+export interface GetUserResponseDetail extends GetUserResponse {
+  projects: Project[];
 }
 
 export interface UpdateUserRequest {

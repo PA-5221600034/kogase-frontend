@@ -2,23 +2,30 @@
  * Event related DTOs
  */
 
-export interface RecordEventRequest {
-  identifier: string;
-  event_type: string;
-  event_name: string;
-  payloads?: Record<string, unknown>;
-  timestamp?: string;
+export interface GetEventsRequestQuery {
+    project_id: string;
+    from_date: string;
+    to_date: string;
+    event_type: string;
+    event_name: string;
+    limit: number;
+    offset: number;
 }
 
-export interface RecordEventResponse {
-  message: string;
+export interface GetEventsResponse {
+    events: GetEventResponse[];
+    total: number;
 }
 
-export interface RecordEventsRequest {
-  events: RecordEventRequest[];
+export interface GetEventRequest {
+    event_id: string;
 }
 
-export interface RecordEventsResponse {
-  message: string;
-  count: number;
-} 
+export interface GetEventResponse {
+    event_id: string;
+    event_type: string;
+    event_name: string;
+    payloads: Record<string, unknown>;
+    timestamp: Date;
+    received_at: Date;
+}
