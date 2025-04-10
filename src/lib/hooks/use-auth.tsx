@@ -1,16 +1,30 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { authApi } from '@/lib/api/auth';
-import { CreateUserRequest, LoginRequest, MeResponse } from '@/lib/dtos';
+import { 
+  createContext, 
+  useContext, 
+  useState, 
+  useEffect, 
+  ReactNode 
+} from 'react';
+
+import { authApi } from '@/lib/api';
+import { 
+  LoginRequest, 
+  LoginResponse,
+  MeResponse,
+  LogoutResponse,
+  CreateUserRequest,
+  CreateUserResponse
+} from '@/lib/dtos';
 
 interface AuthContextType {
   me: MeResponse | null;
   loading: boolean;
   error: string | null;
-  login: (loginRequest: LoginRequest) => Promise<void>;
-  register: (registerRequest: CreateUserRequest) => Promise<void>;
-  logout: () => Promise<void>;
+  login: (loginRequest: LoginRequest) => Promise<LoginResponse>;
+  register: (registerRequest: CreateUserRequest) => Promise<CreateUserResponse>;
+  logout: () => Promise<LogoutResponse>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -42,24 +56,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
   }, []);
 
-  const login = async (loginRequest: LoginRequest) => {
+  const login = async (loginRequest: LoginRequest): Promise<LoginResponse> => {
     try {
       setLoading(true);
-      await authApi.login(loginRequest);
+      const response = await authApi.login(loginRequest);
       
-      authApi.me()
-        .then(me => {
-          setMe(me);
-          setError(null);
-        })
-        .catch(err => {
-          console.error('Failed to fetch user profile:', err);
-          localStorage.removeItem('kogase-token');
-          setError('Session expired. Please login again.');
-        })
-        .finally(() => {
-          setLoading(false);
-        });
+      const meResponse = await authApi.me();
+      setMe(meResponse);
+      setError(null);
+      
+      return response;
     } catch (err) { 
       console.error('Login failed:', err);
       throw err;
@@ -68,24 +74,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const register = async (registerRequest: CreateUserRequest) => {
+  const register = async (registerRequest: CreateUserRequest): Promise<CreateUserResponse> => {
     try {
       setLoading(true);
-      await authApi.register(registerRequest);
+      const response = await authApi.register(registerRequest);
       
-      authApi.me()
-        .then(me => {
-          setMe(me);
-          setError(null);
-        })
-        .catch(err => {
-          console.error('Failed to fetch user profile:', err);
-          localStorage.removeItem('kogase-token');
-          setError('Session expired. Please login again.');
-        })
-        .finally(() => {
-          setLoading(false);
-        });
+      const meResponse = await authApi.me();
+      setMe(meResponse);
+      setError(null);
+      
+      return response as unknown as CreateUserResponse;
     } catch (err) {
       console.error('Registration failed:', err);
       throw err;
@@ -94,16 +92,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const logout = async () => {
+  const logout = async (): Promise<LogoutResponse> => {
     try {
       setLoading(true);
-      await authApi.logout();
+      const response = await authApi.logout();
       setMe(null);
       setError(null);
+      return response;
     } catch (err) {
       console.error('Logout failed:', err);
       localStorage.removeItem('kogase-token');
       setError('Logout failed. Please try again.');
+      throw err;
     } finally {
       setLoading(false);
     }
