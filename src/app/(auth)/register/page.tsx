@@ -18,7 +18,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { registerSchema, type RegisterFormData } from "@/lib/validators/auth";
-import { useAuth } from "@/lib/hooks/use-auth";
+import { useAuth } from "@/lib/hooks";
 
 export default function Register() {
   const router = useRouter();
