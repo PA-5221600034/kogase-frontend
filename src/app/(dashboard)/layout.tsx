@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { LucideHome, LucideList, LucideLogOut } from "lucide-react";
@@ -20,56 +20,77 @@ export default function DashboardLayout({
   const router = useRouter();
   const pathname = usePathname();
   const { me: user, loading: authLoading, logout } = useAuth();
-  const { getProjects, loading: projectsLoading } = useProjects();
-  const [projects, setProjects] = useState<GetProjectResponse[] | null>(null);
+  const { getProjects, loading: projectLoading } = useProjects();
+  
+  const [projects, setProjects] = useState<GetProjectResponse[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  
+  // Use a ref to track initialization to prevent multiple API calls
+  const initialized = useRef(false);
 
+  // Effect for initial load and auth check
   useEffect(() => {
     if (!authLoading && !user) {
       router.push("/login");
     }
   }, [user, authLoading, router]);
 
+  // Effect to load projects once when authenticated
   useEffect(() => {
-    async function loadProjects() {
-      try {
-        const data = await getProjects();
-        setProjects(data.projects);
-        
-        const localStorageSelectedProjectId = localStorage.getItem('selected-project-id');
-        if (localStorageSelectedProjectId && (localStorageSelectedProjectId === 'all' || data.projects.some(p => p.project_id === localStorageSelectedProjectId))) {
-          setSelectedProjectId(localStorageSelectedProjectId);
-        } else {
+    // Only fetch projects once when user is authenticated
+    if (user && !initialized.current) {
+      // Set this immediately to prevent re-entry
+      initialized.current = true;
+      
+      // Load projects
+      async function loadProjects() {
+        try {
+          const data = await getProjects();
+          setProjects(data.projects);
+          
+          // Get the selected project from localStorage
+          const localStorageSelectedProjectId = localStorage.getItem('selected-project-id');
+          
+          // Set selected project id based on localStorage or default to 'all'
+          if (localStorageSelectedProjectId && 
+              (localStorageSelectedProjectId === 'all' || 
+               data.projects.some(p => p.project_id === localStorageSelectedProjectId))) {
+            setSelectedProjectId(localStorageSelectedProjectId);
+          } else {
+            setSelectedProjectId('all');
+            localStorage.setItem('selected-project-id', 'all');
+          }
+        } catch (error) {
+          console.error('Error fetching projects:', error);
           setSelectedProjectId('all');
           localStorage.setItem('selected-project-id', 'all');
         }
-      } catch (error) {
-        console.error('Error fetching projects:', error);
-        setSelectedProjectId('all');
-        localStorage.setItem('selected-project-id', 'all');
       }
-    }
-
-    if (user) {
+      
       loadProjects();
     }
   }, [user, getProjects]);
 
   const handleProjectChange = (value: string) => {
-    setSelectedProjectId(value);
-    localStorage.setItem('selected-project-id', value);
-    
-    const event = new CustomEvent('projectChanged', { detail: value });
-    window.dispatchEvent(event);
-    
-    if (pathname.includes('?')) {
-      const baseUrl = pathname.split('?')[0];
-      const newPath = value === 'all' 
-        ? baseUrl
-        : `${baseUrl}?projectId=${value}`;
-      router.push(newPath);
-    } else {
-      router.refresh();
+    // Only proceed if the value has actually changed
+    if (value !== selectedProjectId) {
+      setSelectedProjectId(value);
+      localStorage.setItem('selected-project-id', value);
+      
+      // Dispatch a custom event to notify other components
+      const event = new CustomEvent('projectChanged', { detail: value });
+      window.dispatchEvent(event);
+      
+      // Navigation updates
+      if (pathname.includes('?')) {
+        const baseUrl = pathname.split('?')[0];
+        const newPath = value === 'all' 
+          ? baseUrl
+          : `${baseUrl}?projectId=${value}`;
+        router.push(newPath);
+      } else {
+        router.refresh();
+      }
     }
   };
 
@@ -78,6 +99,7 @@ export default function DashboardLayout({
     router.push("/login");
   };
 
+  // Show loading UI when auth state is being determined
   if (authLoading) {
     return (
       <div className="flex h-screen flex-col">
@@ -109,6 +131,7 @@ export default function DashboardLayout({
     );
   }
 
+  // Get the selected project name for the dashboard label
   const selectedProjectName = selectedProjectId === 'all' 
     ? "Dashboard" 
     : projects?.find(p => p.project_id === selectedProjectId)?.name || "Dashboard";
@@ -133,9 +156,13 @@ export default function DashboardLayout({
           <div className="flex items-center gap-4">
             <h1 className="text-xl font-bold">Kogase</h1>
             <div className="w-64">
-              <Select value={selectedProjectId || ""} onValueChange={handleProjectChange} disabled={projectsLoading}>
+              <Select 
+                value={selectedProjectId || ""} 
+                onValueChange={handleProjectChange} 
+                disabled={projectLoading}
+              >
                 <SelectTrigger className="h-9">
-                  <SelectValue placeholder={projectsLoading ? "Loading projects..." : "Select a project"} />
+                  <SelectValue placeholder={projectLoading ? "Loading projects..." : "Select a project"} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Projects</SelectItem>

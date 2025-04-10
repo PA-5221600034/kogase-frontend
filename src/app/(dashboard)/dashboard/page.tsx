@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import {
   LucideUsers,
@@ -29,15 +29,16 @@ import { formatDuration } from "@/lib/utils";
 export default function Dashboard() {
   const router = useRouter();
   const pathname = usePathname();
-
   const { getProject, createProject, loading: projectsLoading } = useProjects();
   const { getAnalytics, loading: analyticsLoading } = useAnalytics();
-  
   const [project, setProject] = useState<GetProjectResponseDetail | null>(null);
-  const [analyticsData, setAnalyticsData] = useState<GetAnalyticsResponse | null>(null);
-  const [openDialog, setOpenDialog] = useState(false);
+  const [analytics, setAnalytics] = useState<GetAnalyticsResponse | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
-
+  const [openDialog, setOpenDialog] = useState(false);
+  
+  const isLoadingProject = useRef(false);
+  const isLoadingAnalytics = useRef(false);
+  
   const form = useForm<CreateProjectFormData>({
     resolver: zodResolver(createProjectSchema),
     defaultValues: {
@@ -45,37 +46,6 @@ export default function Dashboard() {
     },
   });
 
-  const fetchProject = useCallback(async () => {
-    try {
-      if (selectedProjectId && selectedProjectId !== 'all') {
-        const response = await getProject(selectedProjectId);
-        setProject(response);
-      } else {
-        setProject(null);
-      }
-    } catch (error) {
-      console.error('Error fetching project details:', error);
-      toast.error('Failed to load project details');
-      setProject(null);
-    }
-  }, [selectedProjectId, getProject]);
-
-  const fetchAnalytics = useCallback(async (projectId: string | null) => {
-    try {
-      if (!projectId || projectId === 'all') {
-        const data = await getAnalytics();
-        return data;
-      } else {
-        const data = await getAnalytics({
-          project_id: projectId,
-        });
-        return data;
-      }
-    } catch (error) {
-      console.error('Error fetching analytics:', error);
-      throw error;
-    }
-  }, [getAnalytics]);
 
   useEffect(() => {    
     const savedProject = localStorage.getItem('selected-project-id');
@@ -95,38 +65,57 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    if (selectedProjectId) {
-      fetchProject();
-    }
-  }, [fetchProject, selectedProjectId]);
-
-  useEffect(() => {
     const savedProject = localStorage.getItem('selected-project-id');
     if (savedProject && savedProject !== selectedProjectId) {
       setSelectedProjectId(savedProject);
     }
   }, [pathname, selectedProjectId]);
 
-  useEffect(() => {
-    async function loadAnalytics() {
-      if (selectedProjectId) {
-        try {
-          const stats = await fetchAnalytics(selectedProjectId);
-          setAnalyticsData(stats);
-        } catch (error) {
-          console.error("Failed to load analytics:", error);
-          setAnalyticsData({
-            dau: 0,
-            mau: 0,
-            total_duration: 0,
-            total_installs: 0,
-          });
-        }
+  async function loadProject() {
+    isLoadingProject.current = true;
+    
+    try {
+      if (selectedProjectId && selectedProjectId !== 'all') {
+        const response = await getProject(selectedProjectId);
+        setProject(response);
+      } else {
+        setProject(null);
       }
+    } catch (error) {
+      console.error('Error fetching project details:', error);
+      toast.error('Failed to load project details');
+      setProject(null);
+    } finally {
+      isLoadingProject.current = false;
     }
+  }
 
+  async function loadAnalytics() {
+    isLoadingAnalytics.current = true;
+
+    try {
+      const data = selectedProjectId === 'all' || !selectedProjectId 
+        ? await getAnalytics() 
+        : await getAnalytics({ project_id: selectedProjectId });  
+      
+      setAnalytics(data);
+    } catch (error) {
+      console.error("Failed to load analytics:", error);
+      setAnalytics(null);
+    } finally {
+      isLoadingAnalytics.current = false;
+    }
+  }
+
+  useEffect(() => {
+    if (!selectedProjectId) return;
+    
+    if (isLoadingProject.current) return;
+  
+    loadProject();
     loadAnalytics();
-  }, [fetchAnalytics, selectedProjectId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProjectId]);
 
   const onSubmit = async (data: CreateProjectFormData) => {
     try {
@@ -198,145 +187,135 @@ export default function Dashboard() {
         </Dialog>
       </div>
 
-      {projectsLoading ? (
-        <Skeleton className="h-10 w-full max-w-xs" />
-      ) : !selectedProjectId || selectedProjectId === 'all' ? (
-        <div className="rounded-lg border p-8 text-center">
-          <h2 className="text-lg font-semibold">No project selected</h2>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Please select a project from the dropdown or create a new one.
-          </p>
-          <Button className="mt-4" onClick={() => setOpenDialog(true)}>
-            <LucidePlusCircle className="mr-2 h-4 w-4" />
-            Create Project
-          </Button>
-        </div>
-      ) : null}
-
-      {selectedProjectId && selectedProjectId !== 'all' && (
-        <>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Daily Active Users</CardTitle>
-                <LucideUsers className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                {analyticsLoading ? (
-                  <Skeleton className="h-8 w-20" />
-                ) : (
-                  <div className="text-2xl font-bold">{analyticsData?.dau || 0}</div>
-                )}
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Monthly Active Users</CardTitle>
-                <LucideUsers className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                {analyticsLoading ? (
-                  <Skeleton className="h-8 w-20" />
-                ) : (
-                  <div className="text-2xl font-bold">{analyticsData?.mau || 0}</div>
-                )}
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Session Duration</CardTitle>
-                <LucideClock className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                {analyticsLoading ? (
-                  <Skeleton className="h-8 w-20" />
-                ) : (
-                  <div className="text-2xl font-bold">{formatDuration(analyticsData?.total_duration || 0)}</div>
-                )}
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Installs</CardTitle>
-                <LucideDownload className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                {analyticsLoading ? (
-                  <Skeleton className="h-8 w-20" />
-                ) : (
-                  <div className="text-2xl font-bold">{analyticsData?.total_installs || 0}</div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          {project && (
-            <div className="mt-6 grid gap-4 md:grid-cols-2">
+      {projectsLoading 
+        ? (
+          <Skeleton className="h-10 w-full max-w-xs" />
+        ) 
+        : selectedProjectId && (
+          <>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               <Card>
-                <CardHeader>
-                  <CardTitle>Project Details</CardTitle>
-                  <CardDescription>
-                    Information about your selected project
-                  </CardDescription>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Daily Active Users</CardTitle>
+                  <LucideUsers className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
-                <CardContent className="space-y-2">
-                  <div>
-                    <span className="font-medium">Name:</span> {project.name}
-                  </div>
-                  <div>
-                    <span className="font-medium">Created By:</span> {project.owner?.name || project.owner?.email}
-                  </div>
-                  <div className="pt-2">
-                    <span className="font-medium block mb-1">API Key:</span>
-                    <code className="block rounded bg-muted p-2 text-sm">
-                      {project.api_key}
-                    </code>
-                  </div>
+                <CardContent>
+                  {analyticsLoading ? (
+                    <Skeleton className="h-8 w-20" />
+                  ) : (
+                    <div className="text-2xl font-bold">{analytics?.dau || 0}</div>
+                  )}
                 </CardContent>
-                <CardFooter className="flex justify-between border-t pt-5">
-                  <Button variant="outline" onClick={goToEvents}>
-                    <LucideActivity className="mr-2 h-4 w-4" />
-                    Explore Events
-                  </Button>
-                </CardFooter>
               </Card>
               <Card>
-                <CardHeader>
-                  <CardTitle>Quick Tips</CardTitle>
-                  <CardDescription>
-                    Getting started with Kogase
-                  </CardDescription>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Monthly Active Users</CardTitle>
+                  <LucideUsers className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="rounded-lg bg-muted p-4">
-                    <h3 className="font-semibold">1. Integrate the SDK</h3>
-                    <p className="mt-1 text-sm">
-                      Use our Unity SDK to start tracking events in your game.
-                    </p>
-                  </div>
-                  <div className="rounded-lg bg-muted p-4">
-                    <h3 className="font-semibold">2. Track Key Events</h3>
-                    <p className="mt-1 text-sm">
-                      Track game starts, level completions, and in-app purchases.
-                    </p>
-                  </div>
-                  <div className="rounded-lg bg-muted p-4">
-                    <h3 className="font-semibold">3. Analyze Your Data</h3>
-                    <p className="mt-1 text-sm">
-                      Use the dashboard to gain insights about player behavior.
-                    </p>
-                  </div>
+                <CardContent>
+                  {analyticsLoading ? (
+                    <Skeleton className="h-8 w-20" />
+                  ) : (
+                    <div className="text-2xl font-bold">{analytics?.mau || 0}</div>
+                  )}
                 </CardContent>
-                <CardFooter className="border-t pt-5">
-                  <Button className="w-full" variant="outline">
-                    View Documentation
-                  </Button>
-                </CardFooter>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Session Duration</CardTitle>
+                  <LucideClock className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  {analyticsLoading ? (
+                    <Skeleton className="h-8 w-20" />
+                  ) : (
+                    <div className="text-2xl font-bold">{formatDuration(analytics?.total_duration || 0)}</div>
+                  )}
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Installs</CardTitle>
+                  <LucideDownload className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  {analyticsLoading ? (
+                    <Skeleton className="h-8 w-20" />
+                  ) : (
+                    <div className="text-2xl font-bold">{analytics?.total_installs || 0}</div>
+                  )}
+                </CardContent>
               </Card>
             </div>
-          )}
-        </>
-      )}
+  
+            {project && (
+              <div className="mt-6 grid gap-4 md:grid-cols-2">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Project Details</CardTitle>
+                    <CardDescription>
+                      Information about your selected project
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    <div>
+                      <span className="font-medium">Name:</span> {project.name}
+                    </div>
+                    <div>
+                      <span className="font-medium">Created By:</span> {project.owner?.name || project.owner?.email}
+                    </div>
+                    <div className="pt-2">
+                      <span className="font-medium block mb-1">API Key:</span>
+                      <code className="block rounded bg-muted p-2 text-sm">
+                        {project.api_key}
+                      </code>
+                    </div>
+                  </CardContent>
+                  <CardFooter className="flex justify-between border-t pt-5">
+                    <Button variant="outline" onClick={goToEvents}>
+                      <LucideActivity className="mr-2 h-4 w-4" />
+                      Explore Events
+                    </Button>
+                  </CardFooter>
+                </Card>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Quick Tips</CardTitle>
+                    <CardDescription>
+                      Getting started with Kogase
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="rounded-lg bg-muted p-4">
+                      <h3 className="font-semibold">1. Integrate the SDK</h3>
+                      <p className="mt-1 text-sm">
+                        Use our Unity SDK to start tracking events in your game.
+                      </p>
+                    </div>
+                    <div className="rounded-lg bg-muted p-4">
+                      <h3 className="font-semibold">2. Track Key Events</h3>
+                      <p className="mt-1 text-sm">
+                        Track game starts, level completions, and in-app purchases.
+                      </p>
+                    </div>
+                    <div className="rounded-lg bg-muted p-4">
+                      <h3 className="font-semibold">3. Analyze Your Data</h3>
+                      <p className="mt-1 text-sm">
+                        Use the dashboard to gain insights about player behavior.
+                      </p>
+                    </div>
+                  </CardContent>
+                  <CardFooter className="border-t pt-5">
+                    <Button className="w-full" variant="outline">
+                      View Documentation
+                    </Button>
+                  </CardFooter>
+                </Card>
+              </div>
+            )}
+          </>
+        ) 
+      }
     </div>
   );
 } 

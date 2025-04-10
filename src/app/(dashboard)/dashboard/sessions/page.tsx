@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { format } from "date-fns";
 import {
   Table,
@@ -51,51 +51,41 @@ export default function SessionsPage() {
   const [fromDate, setFromDate] = useState<Date | undefined>(undefined);
   const [toDate, setToDate] = useState<Date | undefined>(undefined);  
   const [currentProject, setCurrentProject] = useState<GetProjectResponseDetail | null>(null);
+  
+  // Use refs to track loading states and prevent duplicate requests
+  const isLoadingProject = useRef(false);
+  const isLoadingSessions = useRef(false);
+  const initialized = useRef(false);
 
-  const fetchSessions = useCallback(async () => {
-    try {
-      const result = await getSessions({
-        ...filters,
-        offset: (currentPage - 1) * (filters.limit || 10),
-      });
-      setSessions(result.sessions);
-      setTotalSessions(result.total);
-    } catch (error) {
-      console.error("Failed to fetch sessions:", error);
-    }
-  }, [filters, currentPage, getSessions]);
-
-  const fetchCurrentProject = useCallback(async (projectId: string) => {
-    try {
-      if (projectId && projectId !== 'all') {
-        const project = await getProject(projectId);
-        setCurrentProject(project);
-      } else {
-        setCurrentProject(null);
-      }
-    } catch (error) {
-      console.error('Error fetching project details:', error);
-      setCurrentProject(null);
-    }
-  }, [getProject]);
-
+  // Effect for handling project selection from localStorage and event listeners
   useEffect(() => {
+    if (initialized.current) return;
+    initialized.current = true;
+    
     const savedProject = localStorage.getItem('selected-project-id');
     if (savedProject && savedProject !== 'all') {
       setSelectedProjectId(savedProject);
       setFilters(prev => ({ ...prev, project_id: savedProject }));
-      fetchCurrentProject(savedProject);
+      
+      // Load project details
+      loadProject(savedProject);
     }
     
     const handleProjectChange = (e: CustomEvent<string>) => {
-      setSelectedProjectId(e.detail);
-      if (e.detail && e.detail !== 'all') {
-        setFilters(prev => ({ ...prev, project_id: e.detail }));
-        fetchCurrentProject(e.detail);
+      const projectId = e.detail;
+      setSelectedProjectId(projectId);
+      
+      if (projectId && projectId !== 'all') {
+        setFilters(prev => ({ ...prev, project_id: projectId }));
+        
+        // Load project details for the newly selected project
+        loadProject(projectId);
       } else {
-        const newFilters = { ...filters };
-        delete newFilters.project_id;
-        setFilters(newFilters);
+        setFilters(prev => {
+          const newFilters = { ...prev };
+          delete newFilters.project_id;
+          return newFilters;
+        });
         setCurrentProject(null);
       }
     };
@@ -105,42 +95,89 @@ export default function SessionsPage() {
     return () => {
       window.removeEventListener('projectChanged', handleProjectChange as EventListener);
     };
-  }, [fetchCurrentProject, filters]);
+  }, []);
 
-  // Re-fetch data when the pathname or query parameters change
+  useEffect(() => {
+    loadSessions();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters, currentPage]);
+
+  async function loadProject(projectId: string) {
+    if (isLoadingProject.current) return;
+    
+    // Skip invalid project ids
+    if (!projectId || projectId === 'all') {
+      setCurrentProject(null);
+      return;
+    }
+    
+    // Set loading flag
+    isLoadingProject.current = true;
+    
+    try {
+      const project = await getProject(projectId);
+      setCurrentProject(project);
+    } catch (error) {
+      console.error('Error fetching project details:', error);
+      setCurrentProject(null);
+    } finally {
+      // Clear loading flag
+      isLoadingProject.current = false;
+    }
+  }
+  
+  async function loadSessions() {
+    if (isLoadingSessions.current) return;
+    
+    isLoadingSessions.current = true;
+    
+    try {
+      const result = await getSessions({
+        ...filters,
+        offset: (currentPage - 1) * (filters.limit || 10),
+      });
+      setSessions(result.sessions);
+      setTotalSessions(result.total);
+    } catch (error) {
+      console.error("Failed to fetch sessions:", error);
+    } finally {
+      isLoadingSessions.current = false;
+    }
+  }
+
   useEffect(() => {
     const savedProject = localStorage.getItem('selected-project-id');
     if (savedProject && savedProject !== selectedProjectId) {
       setSelectedProjectId(savedProject);
+      
       if (savedProject !== 'all') {
         setFilters(prev => ({ ...prev, project_id: savedProject }));
-        fetchCurrentProject(savedProject);
+        loadProject(savedProject);
       } else {
-        const newFilters = { ...filters };
-        delete newFilters.project_id;
-        setFilters(newFilters);
+        setFilters(prev => {
+          const newFilters = { ...prev };
+          delete newFilters.project_id;
+          return newFilters;
+        });
         setCurrentProject(null);
       }
     }
-  }, [filters, selectedProjectId, fetchCurrentProject]);
-
-  // Fetch sessions when filters or page changes
-  useEffect(() => {
-    fetchSessions();
-  }, [filters, currentPage, fetchSessions]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProjectId]);
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
   };
 
   const handleFilterChange = (key: keyof GetSessionsRequestQuery, value: string | number | null) => {
-    // If value is null, remove the filter
     if (value === null) {
-      const newFilters = { ...filters };
-      delete newFilters[key];
-      setFilters(newFilters);
+      setFilters(prev => {
+        const newFilters = { ...prev };
+        delete newFilters[key];
+        return newFilters;
+      });
     } else {
-      setFilters((prev) => ({ ...prev, [key]: value }));
+      setFilters(prev => ({ ...prev, [key]: value }));
     }
     setCurrentPage(1);
   };
