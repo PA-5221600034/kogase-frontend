@@ -40,7 +40,6 @@ apiClient.interceptors.response.use(
       originalRequest._retry = true;
       
       try {
-        // Redirect to login page
         if (typeof window !== 'undefined') {
           localStorage.removeItem('kogase-token');
           window.location.href = '/login';

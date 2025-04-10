@@ -1,20 +1,9 @@
 import apiClient from './client';
-import { HealthResponse } from '../dtos/health_dto';
+import { HealthResponse } from '@/lib/dtos';
 
 export const healthApi = {
-  // Check health without API key
-  getHealth: async (): Promise<string> => {
-    const response = await apiClient.get<HealthResponse>('/api/v1/health');
-    return response.data.status;
+  getHealth: async (): Promise<HealthResponse> => {
+    const response = await apiClient.get<HealthResponse>('/health');
+    return response.data;
   },
-  
-  // Check health with API key
-  getHealthWithApiKey: async (apiKey: string): Promise<string> => {
-    const response = await apiClient.get<HealthResponse>('/api/v1/health/apikey', {
-      headers: {
-        'X-API-Key': apiKey
-      }
-    });
-    return response.data.status;
-  }
 }; 

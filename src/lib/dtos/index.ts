@@ -2,6 +2,7 @@
  * Index file for exporting all DTOs
  */
 
+export * from './analytics_dto';
 export * from './auth_dto';
 export * from './device_dto';
 export * from './error_dto';

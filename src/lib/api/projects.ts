@@ -8,9 +8,14 @@ import {
   UpdateProjectResponse, 
   DeleteProjectResponse, 
   GetProjectResponse
-} from '../dtos/project_dto';
+} from '@/lib/dtos';
 
 export const projectsApi = {
+  createProject: async (createProjectRequest: CreateProjectRequest): Promise<CreateProjectResponse> => {
+    const response = await apiClient.post<CreateProjectResponse>('/projects', createProjectRequest);
+    return response.data;
+  },
+
   getProjects: async (): Promise<GetProjectsResponse> => {
     const response = await apiClient.get<GetProjectsResponse>('/projects');
     return response.data;
@@ -21,18 +26,14 @@ export const projectsApi = {
     return response.data;
   },
   
-  createProject: async (data: CreateProjectRequest): Promise<CreateProjectResponse> => {
-    const response = await apiClient.post<CreateProjectResponse>('/projects', data);
+  updateProject: async (id: string, updateProjectRequest: UpdateProjectRequest): Promise<UpdateProjectResponse> => {
+    const response = await apiClient.patch<UpdateProjectResponse>(`/projects/${id}`, updateProjectRequest);
     return response.data;
   },
   
-  updateProject: async (id: string, data: UpdateProjectRequest): Promise<UpdateProjectResponse> => {
-    const response = await apiClient.patch<UpdateProjectResponse>(`/projects/${id}`, data);
+  deleteProject: async (id: string): Promise<DeleteProjectResponse> => {
+    const response = await apiClient.delete<DeleteProjectResponse>(`/projects/${id}`);
     return response.data;
-  },
-  
-  deleteProject: async (id: string): Promise<void> => {
-    await apiClient.delete<DeleteProjectResponse>(`/projects/${id}`);
   },
 
   regenerateApiKey: async (id: string): Promise<GetProjectResponse> => {

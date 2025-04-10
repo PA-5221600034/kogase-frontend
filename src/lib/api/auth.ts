@@ -1,70 +1,47 @@
 import apiClient from './client';
-import { LoginRequest, LoginResponse, MeResponse, LogoutResponse } from '../dtos/auth_dto';
-import { User } from '../models/User';
-import { AuthToken } from '../models/AuthToken';
+import { 
+  LoginRequest, 
+  LoginResponse, 
+  MeResponse, 
+  LogoutResponse, 
+  CreateUserRequest,
+  CreateUserResponse
+} from '@/lib/dtos';
 
 export const authApi = {
-  login: async (data: LoginRequest): Promise<{ user: User; token: AuthToken['token'] }> => {
-    const response = await apiClient.post<LoginResponse>('/auth/login', data);
-    
-    // Store the token immediately after login
+  login: async (loginRequest: LoginRequest): Promise<LoginResponse> => {
+    const response = await apiClient.post<LoginResponse>('/auth/login', loginRequest);
+
     const token = response.data.token;
     if (typeof window !== 'undefined') {
       localStorage.setItem('kogase-token', token);
     }
-    
-    // Fetch user profile after login and after token is stored
-    const userResponse = await apiClient.get<MeResponse>('/auth/me');
-    
-    return {
-      user: {
-        id: userResponse.data.id,
-        email: userResponse.data.email,
-        name: userResponse.data.name,
-        created_at: userResponse.data.created_at,
-        updated_at: userResponse.data.updated_at
-      },
-      token: token
-    };
+
+    return response.data;
   },
   
-  register: async (data: { email: string; password: string; name: string }): Promise<{ user: User; token: AuthToken['token'] }> => {
-    const response = await apiClient.post<LoginResponse>('/users', data);
-    
-    // Store the token immediately after registration
-    const token = response.data.token;
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('kogase-token', token);
-    }
-    
-    const userResponse = await apiClient.get<MeResponse>('/auth/me');
-    return {
-      user: {
-        id: userResponse.data.id,
-        email: userResponse.data.email,
-        name: userResponse.data.name,
-        created_at: userResponse.data.created_at,
-        updated_at: userResponse.data.updated_at
-      },
-      token: token
+  register: async (registerRequest: CreateUserRequest): Promise<LoginResponse> => {
+    await apiClient.post<CreateUserResponse>('/users', registerRequest);
+
+    const loginRequest: LoginRequest = {
+      email: registerRequest.email,
+      password: registerRequest.password
     };
+    const loginResponse = await authApi.login(loginRequest);
+
+    return loginResponse;
   },
   
-  me: async (): Promise<User> => {
+  me: async (): Promise<MeResponse> => {
     const response = await apiClient.get<MeResponse>('/auth/me');
-    return {
-      id: response.data.id,
-      email: response.data.email,
-      name: response.data.name,
-      created_at: response.data.created_at,
-      updated_at: response.data.updated_at
-    };
+    return response.data;
   },
   
-  logout: async (): Promise<void> => {
-    await apiClient.post<LogoutResponse>('/auth/logout');
+  logout: async (): Promise<LogoutResponse> => {
+    const response = await apiClient.post<LogoutResponse>('/auth/logout');
     if (typeof window !== 'undefined') {
       localStorage.removeItem('kogase-token');
     }
+    return response.data;
   }
 }; 
