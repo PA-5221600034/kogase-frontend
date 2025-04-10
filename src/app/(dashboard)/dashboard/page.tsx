@@ -7,7 +7,11 @@ import {
   LucideActivity,
   LucidePlusCircle,
   LucideClock,
-  LucideDownload
+  LucideDownload,
+  LucideChevronRight,
+  LucideCode,
+  LucideBarChart3,
+  LucideSettings
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -16,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -142,16 +147,25 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold tracking-tight">
-          {selectedProjectId === 'all' ? 'Dashboard' : project?.name || 'Dashboard'}
-        </h1>
+    <div className="space-y-8 w-full max-w-full">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 w-full">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">
+            {selectedProjectId === 'all' ? 'Dashboard' : project?.name || 'Dashboard'}
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            {selectedProjectId === 'all' 
+              ? 'Overview of all your projects' 
+              : project 
+                ? `Detailed analytics for ${project.name}` 
+                : 'Loading project details...'}
+          </p>
+        </div>
         <Dialog open={openDialog} onOpenChange={setOpenDialog}>
           <DialogTrigger asChild>
-            <Button>
-              <LucidePlusCircle className="mr-2 h-4 w-4" />
-              New Project
+            <Button className="gap-2 shrink-0">
+              <LucidePlusCircle className="h-4 w-4" />
+              <span>New Project</span>
             </Button>
           </DialogTrigger>
           <DialogContent>
@@ -177,7 +191,7 @@ export default function Dashboard() {
                   )}
                 />
                 <DialogFooter>
-                  <Button type="submit" disabled={form.formState.isSubmitting}>
+                  <Button type="submit" disabled={form.formState.isSubmitting} className="w-full sm:w-auto">
                     {form.formState.isSubmitting ? "Creating..." : "Create Project"}
                   </Button>
                 </DialogFooter>
@@ -189,17 +203,26 @@ export default function Dashboard() {
 
       {projectsLoading 
         ? (
-          <Skeleton className="h-10 w-full max-w-xs" />
+          <div className="space-y-6 w-full">
+            <Skeleton className="h-10 w-full max-w-xs" />
+            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 w-full">
+              {[...Array(4)].map((_, i) => (
+                <Skeleton key={i} className="h-32 w-full rounded-xl" />
+              ))}
+            </div>
+          </div>
         ) 
         : selectedProjectId && (
           <>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 w-full">
+              <Card className="overflow-hidden border-border/50 transition-all hover:shadow-md hover:border-border">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-muted/30">
                   <CardTitle className="text-sm font-medium">Daily Active Users</CardTitle>
-                  <LucideUsers className="h-4 w-4 text-muted-foreground" />
+                  <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                    <LucideUsers className="h-4 w-4 text-primary" />
+                  </div>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="pt-6">
                   {analyticsLoading ? (
                     <Skeleton className="h-8 w-20" />
                   ) : (
@@ -207,12 +230,14 @@ export default function Dashboard() {
                   )}
                 </CardContent>
               </Card>
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <Card className="overflow-hidden border-border/50 transition-all hover:shadow-md hover:border-border">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-muted/30">
                   <CardTitle className="text-sm font-medium">Monthly Active Users</CardTitle>
-                  <LucideUsers className="h-4 w-4 text-muted-foreground" />
+                  <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                    <LucideUsers className="h-4 w-4 text-primary" />
+                  </div>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="pt-6">
                   {analyticsLoading ? (
                     <Skeleton className="h-8 w-20" />
                   ) : (
@@ -220,12 +245,14 @@ export default function Dashboard() {
                   )}
                 </CardContent>
               </Card>
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <Card className="overflow-hidden border-border/50 transition-all hover:shadow-md hover:border-border">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-muted/30">
                   <CardTitle className="text-sm font-medium">Total Session Duration</CardTitle>
-                  <LucideClock className="h-4 w-4 text-muted-foreground" />
+                  <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                    <LucideClock className="h-4 w-4 text-primary" />
+                  </div>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="pt-6">
                   {analyticsLoading ? (
                     <Skeleton className="h-8 w-20" />
                   ) : (
@@ -233,12 +260,14 @@ export default function Dashboard() {
                   )}
                 </CardContent>
               </Card>
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <Card className="overflow-hidden border-border/50 transition-all hover:shadow-md hover:border-border">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-muted/30">
                   <CardTitle className="text-sm font-medium">Total Installs</CardTitle>
-                  <LucideDownload className="h-4 w-4 text-muted-foreground" />
+                  <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                    <LucideDownload className="h-4 w-4 text-primary" />
+                  </div>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="pt-6">
                   {analyticsLoading ? (
                     <Skeleton className="h-8 w-20" />
                   ) : (
@@ -249,65 +278,102 @@ export default function Dashboard() {
             </div>
   
             {project && (
-              <div className="mt-6 grid gap-4 md:grid-cols-2">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Project Details</CardTitle>
+              <div className="mt-6 grid gap-4 md:grid-cols-2 w-full">
+                <Card className="border-border/50 transition-all hover:shadow-md hover:border-border overflow-hidden">
+                  <CardHeader className="bg-muted/30">
+                    <CardTitle className="flex items-center gap-2">
+                      <LucideSettings className="h-5 w-5 text-primary" />
+                      Project Details
+                    </CardTitle>
                     <CardDescription>
                       Information about your selected project
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-2">
-                    <div>
-                      <span className="font-medium">Name:</span> {project.name}
+                  <CardContent className="space-y-2 pt-6">
+                    <div className="flex items-center justify-between border-b pb-2">
+                      <span className="font-medium text-muted-foreground">Name</span>
+                      <span>{project.name}</span>
                     </div>
-                    <div>
-                      <span className="font-medium">Created By:</span> {project.owner?.name || project.owner?.email}
+                    <div className="flex items-center justify-between border-b pb-2">
+                      <span className="font-medium text-muted-foreground">Created By</span>
+                      <span>{project.owner?.name || project.owner?.email}</span>
                     </div>
-                    <div className="pt-2">
-                      <span className="font-medium block mb-1">API Key:</span>
-                      <code className="block rounded bg-muted p-2 text-sm">
-                        {project.api_key}
-                      </code>
+                    <div className="pt-4">
+                      <span className="font-medium text-muted-foreground block mb-2">API Key</span>
+                      <div className="flex overflow-hidden">
+                        <ScrollArea className="max-w-full">
+                          <code className="block rounded bg-muted p-3 text-sm">
+                            {project.api_key}
+                          </code>
+                        </ScrollArea>
+                      </div>
                     </div>
                   </CardContent>
-                  <CardFooter className="flex justify-between border-t pt-5">
-                    <Button variant="outline" onClick={goToEvents}>
-                      <LucideActivity className="mr-2 h-4 w-4" />
+                  <CardFooter className="flex justify-between border-t pt-5 bg-muted/20">
+                    <Button variant="outline" onClick={goToEvents} className="group flex items-center gap-2 transition-all">
+                      <LucideActivity className="h-4 w-4 text-primary" />
                       Explore Events
+                      <LucideChevronRight className="h-4 w-4 opacity-0 -ml-4 group-hover:opacity-100 group-hover:ml-0 transition-all" />
                     </Button>
                   </CardFooter>
                 </Card>
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Quick Tips</CardTitle>
+                <Card className="border-border/50 transition-all hover:shadow-md hover:border-border overflow-hidden">
+                  <CardHeader className="bg-muted/30">
+                    <CardTitle className="flex items-center gap-2">
+                      <LucideBarChart3 className="h-5 w-5 text-primary" />
+                      Quick Tips
+                    </CardTitle>
                     <CardDescription>
                       Getting started with Kogase
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="rounded-lg bg-muted p-4">
-                      <h3 className="font-semibold">1. Integrate the SDK</h3>
-                      <p className="mt-1 text-sm">
-                        Use our Unity SDK to start tracking events in your game.
-                      </p>
+                  <CardContent className="space-y-4 pt-6">
+                    <div className="rounded-lg bg-muted/50 p-4 border border-border/50">
+                      <div className="flex items-start gap-3">
+                        <div className="h-7 w-7 rounded-full bg-primary/15 flex items-center justify-center shrink-0 mt-0.5">
+                          <LucideCode className="h-3.5 w-3.5 text-primary" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold">1. Integrate the SDK</h3>
+                          <p className="mt-1 text-sm text-muted-foreground">
+                            Use our Unity SDK to start tracking events in your game.
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                    <div className="rounded-lg bg-muted p-4">
-                      <h3 className="font-semibold">2. Track Key Events</h3>
-                      <p className="mt-1 text-sm">
-                        Track game starts, level completions, and in-app purchases.
-                      </p>
+                    <div className="rounded-lg bg-muted/50 p-4 border border-border/50">
+                      <div className="flex items-start gap-3">
+                        <div className="h-7 w-7 rounded-full bg-primary/15 flex items-center justify-center shrink-0 mt-0.5">
+                          <LucideActivity className="h-3.5 w-3.5 text-primary" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold">2. Track Key Events</h3>
+                          <p className="mt-1 text-sm text-muted-foreground">
+                            Track game starts, level completions, and in-app purchases.
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                    <div className="rounded-lg bg-muted p-4">
-                      <h3 className="font-semibold">3. Analyze Your Data</h3>
-                      <p className="mt-1 text-sm">
-                        Use the dashboard to gain insights about player behavior.
-                      </p>
+                    <div className="rounded-lg bg-muted/50 p-4 border border-border/50">
+                      <div className="flex items-start gap-3">
+                        <div className="h-7 w-7 rounded-full bg-primary/15 flex items-center justify-center shrink-0 mt-0.5">
+                          <LucideBarChart3 className="h-3.5 w-3.5 text-primary" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold">3. Analyze Your Data</h3>
+                          <p className="mt-1 text-sm text-muted-foreground">
+                            Use the dashboard to gain insights about player behavior.
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   </CardContent>
-                  <CardFooter className="border-t pt-5">
-                    <Button className="w-full" variant="outline">
-                      View Documentation
+                  <CardFooter className="border-t pt-5 bg-muted/20">
+                    <Button className="w-full group" variant="outline">
+                      <span className="flex items-center gap-2">
+                        View Documentation
+                        <LucideChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                      </span>
                     </Button>
                   </CardFooter>
                 </Card>

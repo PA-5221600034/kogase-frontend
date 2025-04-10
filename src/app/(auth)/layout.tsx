@@ -6,15 +6,27 @@ export default function AuthLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center p-4 md:p-8">
-      <div className="w-full max-w-md">
-        <div className="mb-8 flex flex-col items-center text-center">
-          <h1 className="text-3xl font-bold tracking-tight">Kogase</h1>
-          <p className="text-sm text-muted-foreground">
-            Komu{"'"}s Game Service
-          </p>
+    <div className="min-h-screen flex flex-col bg-gradient-to-b from-background to-muted/50">
+      <div className="flex flex-1 items-center justify-center p-4 md:p-8">
+        <div className="w-full max-w-md">
+          <div className="mb-8 flex flex-col items-center text-center space-y-2">
+            <div className="size-12 rounded-full bg-primary/10 flex items-center justify-center mb-2">
+              <h1 className="text-2xl font-bold text-primary">K</h1>
+            </div>
+            <h1 className="text-3xl font-bold tracking-tight">Kogase</h1>
+            <p className="text-sm text-muted-foreground max-w-xs">
+              Komu{"'"}s Game Service - Analytics and tracking for game developers
+            </p>
+          </div>
+          
+          <div className="backdrop-blur-sm bg-card/90 rounded-xl border shadow-sm overflow-hidden">
+            {children}
+          </div>
+          
+          <div className="mt-8 text-center text-xs text-muted-foreground">
+            <p>© 2023 Kogase. All rights reserved.</p>
+          </div>
         </div>
-        {children}
       </div>
     </div>
   );

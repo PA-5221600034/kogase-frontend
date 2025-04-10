@@ -1,24 +1,19 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import React, { useEffect, useState, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { 
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious 
-} from "@/components/ui/pagination";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+  LucideActivity,
+  Filter,
+  RefreshCw,
+  XCircle,
+  CalendarIcon,
+  ChevronDown,
+  Info
+} from "lucide-react";
+
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { 
   Select,
@@ -27,61 +22,82 @@ import {
   SelectTrigger,
   SelectValue 
 } from "@/components/ui/select";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { cn, formatDuration } from "@/lib/utils";
-import { CalendarIcon, Clock, Calendar as CalendarIcon2, Filter, XCircle, RefreshCw } from "lucide-react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { cn } from "@/lib/utils";
 
-import { useSessions, useProjects } from "@/lib/hooks";
-import { GetSessionResponse, GetSessionsRequestQuery } from "@/lib/dtos/session_dto";
+import { useEvents, useProjects } from "@/lib/hooks";
+import { GetEventsRequestQuery, GetEventResponse } from "@/lib/dtos";
 import { GetProjectResponseDetail } from "@/lib/dtos/project_dto";
 
-export default function SessionsPage() {
-  const { getSessions, loading: sessionsLoading } = useSessions();
+export default function EventsPage() {
+  const searchParams = useSearchParams();
+  const projectIdParam = searchParams.get('projectId');
+  
+  const { getEvents, loading: eventsLoading } = useEvents();
   const { getProject, loading: projectLoading } = useProjects();
   
-  const [sessions, setSessions] = useState<GetSessionResponse[]>([]);
-  const [totalSessions, setTotalSessions] = useState(0);
+  const [events, setEvents] = useState<GetEventResponse[]>([]);
+  const [totalEvents, setTotalEvents] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
-  const [filters, setFilters] = useState<GetSessionsRequestQuery>({
+  const [currentProject, setCurrentProject] = useState<GetProjectResponseDetail | null>(null);
+  const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
+  
+  const [filters, setFilters] = useState<Partial<GetEventsRequestQuery>>({
     limit: 10,
     offset: 0,
   });
-  const [fromDate, setFromDate] = useState<Date | undefined>(undefined);
-  const [toDate, setToDate] = useState<Date | undefined>(undefined);  
-  const [currentProject, setCurrentProject] = useState<GetProjectResponseDetail | null>(null);
   
-  // Use refs to track loading states and prevent duplicate requests
+  const [fromDate, setFromDate] = useState<Date | undefined>(undefined);
+  const [toDate, setToDate] = useState<Date | undefined>(undefined);
+  const [eventType, setEventType] = useState<string>("");
+  const [eventName, setEventName] = useState<string>("");
+  
+  // Refs to track loading states
   const isLoadingProject = useRef(false);
-  const isLoadingSessions = useRef(false);
+  const isLoadingEvents = useRef(false);
   const initialized = useRef(false);
 
-  // Effect for handling project selection from localStorage and event listeners
+  // Handle initial load and project param
   useEffect(() => {
     if (initialized.current) return;
     initialized.current = true;
     
-    const savedProject = localStorage.getItem('selected-project-id');
-    if (savedProject && savedProject !== 'all') {
-      setSelectedProjectId(savedProject);
-      setFilters(prev => ({ ...prev, project_id: savedProject }));
-      
-      // Load project details
-      loadProject(savedProject);
+    // Check for projectId in URL params
+    if (projectIdParam && projectIdParam !== 'all') {
+      setSelectedProjectId(projectIdParam);
+      setFilters(prev => ({ ...prev, project_id: projectIdParam }));
+      loadProject(projectIdParam);
+    } else {
+      // If no project in URL, check localStorage
+      const savedProject = localStorage.getItem('selected-project-id');
+      if (savedProject && savedProject !== 'all') {
+        setSelectedProjectId(savedProject);
+        setFilters(prev => ({ ...prev, project_id: savedProject }));
+        loadProject(savedProject);
+      }
     }
     
+    // Listen for project changes from the project selector
     const handleProjectChange = (e: CustomEvent<string>) => {
       const projectId = e.detail;
       setSelectedProjectId(projectId);
       
       if (projectId && projectId !== 'all') {
         setFilters(prev => ({ ...prev, project_id: projectId }));
-        
-        // Load project details for the newly selected project
         loadProject(projectId);
       } else {
         setFilters(prev => {
@@ -98,10 +114,11 @@ export default function SessionsPage() {
     return () => {
       window.removeEventListener('projectChanged', handleProjectChange as EventListener);
     };
-  }, []);
+  }, [projectIdParam]);
 
+  // Load events when filters or page changes
   useEffect(() => {
-    loadSessions();
+    loadEvents();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters, currentPage]);
 
@@ -129,51 +146,32 @@ export default function SessionsPage() {
     }
   }
   
-  async function loadSessions() {
-    if (isLoadingSessions.current) return;
+  async function loadEvents() {
+    if (isLoadingEvents.current) return;
     
-    isLoadingSessions.current = true;
+    isLoadingEvents.current = true;
     
     try {
-      const result = await getSessions({
+      const result = await getEvents({
         ...filters,
         offset: (currentPage - 1) * (filters.limit || 10),
-      });
-      setSessions(result.sessions);
-      setTotalSessions(result.total);
+      } as GetEventsRequestQuery);
+      
+      setEvents(result.events);
+      setTotalEvents(result.total);
     } catch (error) {
-      console.error("Failed to fetch sessions:", error);
+      console.error("Failed to fetch events:", error);
     } finally {
-      isLoadingSessions.current = false;
+      isLoadingEvents.current = false;
     }
   }
-
-  useEffect(() => {
-    const savedProject = localStorage.getItem('selected-project-id');
-    if (savedProject && savedProject !== selectedProjectId) {
-      setSelectedProjectId(savedProject);
-      
-      if (savedProject !== 'all') {
-        setFilters(prev => ({ ...prev, project_id: savedProject }));
-        loadProject(savedProject);
-      } else {
-        setFilters(prev => {
-          const newFilters = { ...prev };
-          delete newFilters.project_id;
-          return newFilters;
-        });
-        setCurrentProject(null);
-      }
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedProjectId]);
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
   };
 
-  const handleFilterChange = (key: keyof GetSessionsRequestQuery, value: string | number | null) => {
-    if (value === null) {
+  const handleFilterChange = (key: keyof GetEventsRequestQuery, value: string | number | null) => {
+    if (value === null || value === "") {
       setFilters(prev => {
         const newFilters = { ...prev };
         delete newFilters[key];
@@ -185,13 +183,23 @@ export default function SessionsPage() {
     setCurrentPage(1);
   };
 
-  const handleDateFilterApply = () => {
+  const handleApplyFilters = () => {
+    // Apply date filters
     if (fromDate) {
       handleFilterChange("from_date", fromDate.toISOString());
     }
     
     if (toDate) {
       handleFilterChange("to_date", toDate.toISOString());
+    }
+    
+    // Apply event type and name filters
+    if (eventType) {
+      handleFilterChange("event_type", eventType);
+    }
+    
+    if (eventName) {
+      handleFilterChange("event_name", eventName);
     }
   };
 
@@ -200,22 +208,31 @@ export default function SessionsPage() {
       limit: 10,
       offset: 0,
     });
+    
+    if (selectedProjectId && selectedProjectId !== 'all') {
+      setFilters(prev => ({ ...prev, project_id: selectedProjectId }));
+    }
+    
     setFromDate(undefined);
     setToDate(undefined);
+    setEventType("");
+    setEventName("");
     setCurrentPage(1);
-    
-    const savedProject = localStorage.getItem('selected-project-id');
-    if (savedProject && savedProject !== 'all') {
-      setSelectedProjectId(savedProject);
-      setFilters(prev => ({ ...prev, project_id: savedProject }));
+  };
+
+  const toggleExpandEvent = (eventId: string) => {
+    if (expandedEventId === eventId) {
+      setExpandedEventId(null);
     } else {
-      setSelectedProjectId(null);
+      setExpandedEventId(eventId);
     }
   };
 
-  const totalPages = Math.ceil(totalSessions / (filters.limit || 10));
+  const totalPages = Math.ceil(totalEvents / (filters.limit || 10));
+  const isLoading = eventsLoading || projectLoading;
 
-  const isLoading = sessionsLoading || projectLoading;
+  // Filter options for event types
+  const eventTypeOptions = ["session_start", "session_end", "custom", "app_install"];
 
   const FilterSheet = () => (
     <Sheet>
@@ -227,12 +244,13 @@ export default function SessionsPage() {
       </SheetTrigger>
       <SheetContent side="left" className="w-[300px] sm:w-[400px]">
         <SheetHeader>
-          <SheetTitle>Filter Sessions</SheetTitle>
+          <SheetTitle>Filter Events</SheetTitle>
           <SheetDescription>
-            Apply filters to narrow down your session results
+            Apply filters to narrow down your event results
           </SheetDescription>
         </SheetHeader>
         <div className="py-6 space-y-6">
+          {/* Date range filters */}
           <div className="space-y-2">
             <h3 className="text-sm font-medium">Date Range</h3>
             <div className="space-y-4">
@@ -282,12 +300,41 @@ export default function SessionsPage() {
               </div>
             </div>
           </div>
+          
+          {/* Event type filter */}
+          <div className="space-y-2">
+            <h3 className="text-sm font-medium">Event Type</h3>
+            <Select value={eventType} onValueChange={setEventType}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select event type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">All Types</SelectItem>
+                {eventTypeOptions.map(type => (
+                  <SelectItem key={type} value={type}>{type}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          
+          {/* Event name filter */}
+          <div className="space-y-2">
+            <h3 className="text-sm font-medium">Event Name</h3>
+            <input
+              type="text"
+              placeholder="Filter by event name"
+              value={eventName}
+              onChange={(e) => setEventName(e.target.value)}
+              className="w-full px-3 py-2 border rounded-md"
+            />
+          </div>
+          
           <div className="flex justify-between space-x-2">
             <Button variant="outline" onClick={handleClearFilters} className="flex items-center gap-2">
               <XCircle className="h-4 w-4" />
               Clear
             </Button>
-            <Button onClick={handleDateFilterApply} className="flex items-center gap-2">
+            <Button onClick={handleApplyFilters} className="flex items-center gap-2">
               <Filter className="h-4 w-4" />
               Apply Filters
             </Button>
@@ -298,18 +345,17 @@ export default function SessionsPage() {
   );
 
   return (
-    <>
     <div className="space-y-6 w-full max-w-full">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 w-full">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">
-            {selectedProjectId === 'all' ? 'Sessions' : currentProject?.name ? `${currentProject.name} - Sessions` : 'Sessions'}
+            {selectedProjectId === 'all' ? 'Events' : currentProject?.name ? `${currentProject.name} - Events` : 'Events'}
           </h1>
-          <p className="text-muted-foreground mt-1">View and manage your time tracking sessions</p>
+          <p className="text-muted-foreground mt-1">View and analyze event data from your application</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <FilterSheet />
-          <Button variant="outline" size="sm" onClick={loadSessions} className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={loadEvents} className="flex items-center gap-2">
             <RefreshCw className="h-4 w-4" />
             <span className="hidden md:inline">Refresh</span>
           </Button>
@@ -323,7 +369,7 @@ export default function SessionsPage() {
             Filters
           </CardTitle>
           <CardDescription>
-            Narrow down sessions by applying date filters
+            Narrow down events by applying filters
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -350,6 +396,7 @@ export default function SessionsPage() {
                 </PopoverContent>
               </Popover>
             </div>
+            
             <div>
               <label className="text-sm font-medium mb-1 block">To Date</label>
               <Popover>
@@ -372,13 +419,40 @@ export default function SessionsPage() {
                 </PopoverContent>
               </Popover>
             </div>
+            
+            <div>
+              <label className="text-sm font-medium mb-1 block">Event Type</label>
+              <Select value={eventType} onValueChange={setEventType}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select event type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="empty">All Types</SelectItem>
+                  {eventTypeOptions.map(type => (
+                    <SelectItem key={type} value={type}>{type}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div>
+              <label className="text-sm font-medium mb-1 block">Event Name</label>
+              <input
+                type="text"
+                placeholder="Filter by event name"
+                value={eventName}
+                onChange={(e) => setEventName(e.target.value)}
+                className="w-full h-10 px-3 py-2 border rounded-md"
+              />
+            </div>
           </div>
+          
           <div className="flex justify-end space-x-2 mt-4">
             <Button variant="outline" onClick={handleClearFilters} className="flex items-center gap-2">
               <XCircle className="h-4 w-4" />
               Clear
             </Button>
-            <Button onClick={handleDateFilterApply} className="flex items-center gap-2">
+            <Button onClick={handleApplyFilters} className="flex items-center gap-2">
               <Filter className="h-4 w-4" />
               Apply Filters
             </Button>
@@ -390,16 +464,19 @@ export default function SessionsPage() {
         <CardHeader className="md:flex-row md:items-center md:justify-between space-y-0">
           <div>
             <CardTitle className="flex items-center gap-2">
-              <Clock className="h-5 w-5" />
-              Sessions List
+              <LucideActivity className="h-5 w-5" />
+              Events List
             </CardTitle>
             <CardDescription className="mt-1.5">
-              {totalSessions} total sessions found
+              {totalEvents} total events found
             </CardDescription>
           </div>
           <div className="flex items-center space-x-2 mt-4 md:mt-0">
             <label className="text-sm whitespace-nowrap">Show:</label>
-            <Select value={String(filters.limit || 10)} onValueChange={(value) => handleFilterChange("limit", parseInt(value))}>
+            <Select 
+              value={String(filters.limit || 10)} 
+              onValueChange={(value) => handleFilterChange("limit", parseInt(value))}
+            >
               <SelectTrigger className="w-[80px]">
                 <SelectValue placeholder="10" />
               </SelectTrigger>
@@ -421,55 +498,93 @@ export default function SessionsPage() {
                 </div>
               ))}
             </div>
-          ) : sessions.length === 0 ? (
+          ) : events.length === 0 ? (
             <div className="text-center py-12 border rounded-lg bg-background/50 w-full">
-              <CalendarIcon2 className="mx-auto h-12 w-12 text-muted-foreground/50" />
-              <h3 className="mt-4 text-lg font-semibold">No sessions found</h3>
+              <LucideActivity className="mx-auto h-12 w-12 text-muted-foreground/50" />
+              <h3 className="mt-4 text-lg font-semibold">No events found</h3>
               <p className="mt-2 text-sm text-muted-foreground">
-                Try adjusting your filters or create a new session.
+                Try adjusting your filters or check if your application is sending events.
               </p>
             </div>
           ) : (
             <>
               <div className="rounded-md border overflow-hidden w-full">
-                <ScrollArea className="max-h-[500px] md:max-h-none w-full">
+                <ScrollArea className="max-h-[600px] md:max-h-none w-full">
                   <Table>
                     <TableHeader className="bg-muted/50 sticky top-0">
                       <TableRow>
-                        <TableHead className="w-[140px]">Session ID</TableHead>
-                        <TableHead className="hidden sm:table-cell">Begin Time</TableHead>
-                        <TableHead>End Time</TableHead>
-                        <TableHead className="text-right">Duration</TableHead>
+                        <TableHead className="w-[180px]">Event ID</TableHead>
+                        <TableHead className="w-[140px]">Type</TableHead>
+                        <TableHead className="w-[180px]">Name</TableHead>
+                        <TableHead className="hidden md:table-cell">Timestamp</TableHead>
+                        <TableHead className="w-[100px] text-right">Details</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {sessions.map((session) => (
-                        <TableRow key={session.session_id} className="hover:bg-muted/50">
-                          <TableCell className="font-mono text-xs sm:text-sm">
-                            {session.session_id.substring(0, 8)}...
-                          </TableCell>
-                          <TableCell className="hidden sm:table-cell">
-                            {format(new Date(session.begin_at), "PPp")}
-                          </TableCell>
-                          <TableCell>
-                            {session.end_at 
-                              ? format(new Date(session.end_at), "PPp") 
-                              : <span className="text-green-600 dark:text-green-400 inline-flex items-center gap-1">
-                                  <span className="relative flex h-2 w-2">
-                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                                  </span>
-                                  Active
-                                </span>
-                            }
-                          </TableCell>
-                          <TableCell className="text-right font-medium">
-                            {session.duration 
-                              ? formatDuration(session.duration) 
-                              : "—"
-                            }
-                          </TableCell>
-                        </TableRow>
+                      {events.map((event) => (
+                        <React.Fragment key={event.event_id}>
+                          <TableRow className="hover:bg-muted/50">
+                            <TableCell className="font-mono text-xs sm:text-sm">
+                              {event.event_id.substring(0, 10)}...
+                            </TableCell>
+                            <TableCell>
+                              <span className={`px-2 py-1 rounded-full text-xs ${
+                                event.event_type === 'session_start' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
+                                event.event_type === 'session_end' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' :
+                                event.event_type === 'app_install' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' :
+                                'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+                              }`}>
+                                {event.event_type}
+                              </span>
+                            </TableCell>
+                            <TableCell>
+                              {event.event_name}
+                            </TableCell>
+                            <TableCell className="hidden md:table-cell">
+                              {format(new Date(event.timestamp), "PPp")}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                onClick={() => toggleExpandEvent(event.event_id)}
+                                className="h-8 w-8 p-0"
+                              >
+                                <ChevronDown className={`h-4 w-4 transition-transform ${
+                                  expandedEventId === event.event_id ? "rotate-180" : ""
+                                }`} />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                          {expandedEventId === event.event_id && (
+                            <TableRow className="bg-muted/30">
+                              <TableCell colSpan={5} className="p-0">
+                                <div className="px-4 py-3">
+                                  <div className="mb-2 flex items-center gap-2">
+                                    <Info className="h-4 w-4 text-muted-foreground" />
+                                    <h4 className="font-medium">Event Details</h4>
+                                  </div>
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                                    <div>
+                                      <p className="text-muted-foreground mb-1">Full Event ID:</p>
+                                      <p className="font-mono bg-muted p-2 rounded">{event.event_id}</p>
+                                    </div>
+                                    <div>
+                                      <p className="text-muted-foreground mb-1">Received At:</p>
+                                      <p>{format(new Date(event.received_at), "PPp")}</p>
+                                    </div>
+                                  </div>
+                                  <div className="mt-3">
+                                    <p className="text-muted-foreground mb-1">Payload:</p>
+                                    <pre className="bg-muted p-3 rounded overflow-auto max-h-40 text-xs">
+                                      {JSON.stringify(event.payloads, null, 2)}
+                                    </pre>
+                                  </div>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </React.Fragment>
                       ))}
                     </TableBody>
                   </Table>
@@ -530,6 +645,5 @@ export default function SessionsPage() {
         </CardContent>
       </Card>
     </div>
-    </>
   );
 } 
