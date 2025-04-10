@@ -29,33 +29,32 @@ import {
 } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
+import { cn, formatDuration } from "@/lib/utils";
 import { CalendarIcon, Loader2 } from "lucide-react";
 
-import { sessionsApi } from "@/lib/api/sessions";
+import { useSessions, useProjects } from "@/lib/hooks";
 import { GetSessionResponse, GetSessionsRequestQuery } from "@/lib/dtos/session_dto";
-import { projectsApi } from "@/lib/api/projects";
-import { GetProjectResponse } from "@/lib/dtos/project_dto";
+import { GetProjectResponseDetail } from "@/lib/dtos/project_dto";
 
 export default function SessionsPage() {
-  const [isLoading, setIsLoading] = useState(true);
+  const { getSessions, loading: sessionsLoading } = useSessions();
+  const { getProject, loading: projectLoading } = useProjects();
+  
   const [sessions, setSessions] = useState<GetSessionResponse[]>([]);
   const [totalSessions, setTotalSessions] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [filters, setFilters] = useState<GetSessionsRequestQuery>({
     limit: 10,
     offset: 0,
   });
   const [fromDate, setFromDate] = useState<Date | undefined>(undefined);
   const [toDate, setToDate] = useState<Date | undefined>(undefined);  
-  const [selectedProject, setSelectedProject] = useState<string | null>(null);
-  const [projects, setProjects] = useState<GetProjectResponse[]>([]);
+  const [currentProject, setCurrentProject] = useState<GetProjectResponseDetail | null>(null);
 
-  // Define fetchSessions with useCallback
   const fetchSessions = useCallback(async () => {
-    setIsLoading(true);
     try {
-      const result = await sessionsApi.getSessions({
+      const result = await getSessions({
         ...filters,
         offset: (currentPage - 1) * (filters.limit || 10),
       });
@@ -63,69 +62,69 @@ export default function SessionsPage() {
       setTotalSessions(result.total);
     } catch (error) {
       console.error("Failed to fetch sessions:", error);
-    } finally {
-      setIsLoading(false);
     }
-  }, [filters, currentPage]);
+  }, [filters, currentPage, getSessions]);
 
-  // Now define the useEffect hooks that use the callbacks
+  const fetchCurrentProject = useCallback(async (projectId: string) => {
+    try {
+      if (projectId && projectId !== 'all') {
+        const project = await getProject(projectId);
+        setCurrentProject(project);
+      } else {
+        setCurrentProject(null);
+      }
+    } catch (error) {
+      console.error('Error fetching project details:', error);
+      setCurrentProject(null);
+    }
+  }, [getProject]);
+
   useEffect(() => {
-    // Get the selected project from localStorage (set by layout.tsx)
-    const savedProject = localStorage.getItem('selectedProject');
+    const savedProject = localStorage.getItem('selected-project-id');
     if (savedProject && savedProject !== 'all') {
-      setSelectedProject(savedProject);
+      setSelectedProjectId(savedProject);
       setFilters(prev => ({ ...prev, project_id: savedProject }));
+      fetchCurrentProject(savedProject);
     }
     
-    // Add event listener for project change events
     const handleProjectChange = (e: CustomEvent<string>) => {
-      setSelectedProject(e.detail);
+      setSelectedProjectId(e.detail);
       if (e.detail && e.detail !== 'all') {
         setFilters(prev => ({ ...prev, project_id: e.detail }));
+        fetchCurrentProject(e.detail);
       } else {
         const newFilters = { ...filters };
         delete newFilters.project_id;
         setFilters(newFilters);
+        setCurrentProject(null);
       }
     };
 
-    // Listen for project change events
     window.addEventListener('projectChanged', handleProjectChange as EventListener);
-    
-    // Fetch the projects to get project names
-    async function fetchProjects() {
-      try {
-        const response = await projectsApi.getProjects();
-        setProjects(response.projects);
-      } catch (error) {
-        console.error('Error fetching projects:', error);
-      }
-    }
-    
-    fetchProjects();
-    fetchSessions();
     
     return () => {
       window.removeEventListener('projectChanged', handleProjectChange as EventListener);
     };
-  }, []);
+  }, [fetchCurrentProject, filters]);
 
   // Re-fetch data when the pathname or query parameters change
   useEffect(() => {
-    // Read selected project from localStorage as it might have been updated by layout
-    const savedProject = localStorage.getItem('selectedProject');
-    if (savedProject && savedProject !== selectedProject) {
-      setSelectedProject(savedProject);
+    const savedProject = localStorage.getItem('selected-project-id');
+    if (savedProject && savedProject !== selectedProjectId) {
+      setSelectedProjectId(savedProject);
       if (savedProject !== 'all') {
         setFilters(prev => ({ ...prev, project_id: savedProject }));
+        fetchCurrentProject(savedProject);
       } else {
         const newFilters = { ...filters };
         delete newFilters.project_id;
         setFilters(newFilters);
+        setCurrentProject(null);
       }
     }
-  }, [selectedProject]);
+  }, [filters, selectedProjectId, fetchCurrentProject]);
 
+  // Fetch sessions when filters or page changes
   useEffect(() => {
     fetchSessions();
   }, [filters, currentPage, fetchSessions]);
@@ -143,19 +142,15 @@ export default function SessionsPage() {
     } else {
       setFilters((prev) => ({ ...prev, [key]: value }));
     }
-    setCurrentPage(1); // Reset to first page on filter change
+    setCurrentPage(1);
   };
 
   const handleDateFilterApply = () => {
     if (fromDate) {
-      // The backend will convert this to 00:00:00 of the selected date
-      // Format the date object to ISO string
       handleFilterChange("from_date", fromDate.toISOString());
     }
     
     if (toDate) {
-      // The backend will convert this to 23:59:59 of the selected date
-      // Format the date object to ISO string
       handleFilterChange("to_date", toDate.toISOString());
     }
   };
@@ -169,44 +164,24 @@ export default function SessionsPage() {
     setToDate(undefined);
     setCurrentPage(1);
     
-    // Restore the project from localStorage
-    const savedProject = localStorage.getItem('selectedProject');
+    const savedProject = localStorage.getItem('selected-project-id');
     if (savedProject && savedProject !== 'all') {
-      setSelectedProject(savedProject);
+      setSelectedProjectId(savedProject);
       setFilters(prev => ({ ...prev, project_id: savedProject }));
     } else {
-      setSelectedProject(null);
-    }
-  };
-
-  const formatDuration = (duration: number) => {
-    // Convert duration from nanoseconds to seconds
-    const seconds = Math.floor(duration / 1000000000);
-    
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const remainingSeconds = seconds % 60;
-    
-    if (hours > 0) {
-      return `${hours}h ${minutes}m ${remainingSeconds}s`;
-    } else if (minutes > 0) {
-      return `${minutes}m ${remainingSeconds}s`;
-    } else {
-      return `${remainingSeconds}s`;
+      setSelectedProjectId(null);
     }
   };
 
   const totalPages = Math.ceil(totalSessions / (filters.limit || 10));
 
-  const currentProject = selectedProject && selectedProject !== 'all' 
-    ? projects.find(p => p.project_id === selectedProject) 
-    : null;
+  const isLoading = sessionsLoading || projectLoading;
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">
-          {selectedProject === 'all' ? 'Sessions' : currentProject?.name ? `${currentProject.name} - Sessions` : 'Sessions'}
+          {selectedProjectId === 'all' ? 'Sessions' : currentProject?.name ? `${currentProject.name} - Sessions` : 'Sessions'}
         </h1>
       </div>
 
@@ -350,7 +325,6 @@ export default function SessionsPage() {
                     </PaginationItem>
                     
                     {[...Array(Math.min(5, totalPages))].map((_, i) => {
-                      // Calculate page numbers to show
                       let pageToShow;
                       if (totalPages <= 5) {
                         pageToShow = i + 1;

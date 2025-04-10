@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import {
   LucideUsers,
@@ -21,50 +21,52 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { createProjectSchema, type CreateProjectFormData } from "@/lib/validators/projects";
 import { Skeleton } from "@/components/ui/skeleton";
-import { projectsApi } from "@/lib/api/projects";
-import { analyticsApi } from "@/lib/api/analytics";
-import { GetProjectResponse } from "@/lib/dtos/project_dto";
+import { useProjects, useAnalytics } from "@/lib/hooks";
+import { GetProjectResponseDetail } from "@/lib/dtos/project_dto";
 import { GetAnalyticsResponse } from "@/lib/dtos/analytics_dto";
+import { formatDuration } from "@/lib/utils";
 
 export default function Dashboard() {
   const router = useRouter();
   const pathname = usePathname();
-  const [projects, setProjects] = useState<GetProjectResponse[]>([]);
-  const [projectsLoading, setProjectsLoading] = useState(true);
+
+  const { getProject, createProject, loading: projectsLoading } = useProjects();
+  const { getAnalytics, loading: analyticsLoading } = useAnalytics();
+  
+  const [project, setProject] = useState<GetProjectResponseDetail | null>(null);
   const [analyticsData, setAnalyticsData] = useState<GetAnalyticsResponse | null>(null);
-  const [statsLoading, setStatsLoading] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
-  const [selectedProject, setSelectedProject] = useState<string | null>(null);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
 
   const form = useForm<CreateProjectFormData>({
     resolver: zodResolver(createProjectSchema),
     defaultValues: {
       name: "",
-      description: "",
     },
   });
 
-  async function fetchProjects() {
-    setProjectsLoading(true);
+  const fetchProject = useCallback(async () => {
     try {
-      const response = await projectsApi.getProjects();
-      setProjects(response.projects);
+      if (selectedProjectId && selectedProjectId !== 'all') {
+        const response = await getProject(selectedProjectId);
+        setProject(response);
+      } else {
+        setProject(null);
+      }
     } catch (error) {
-      console.error('Error fetching projects:', error);
-      toast.error('Failed to load projects');
-      setProjects([]);
-    } finally {
-      setProjectsLoading(false);
+      console.error('Error fetching project details:', error);
+      toast.error('Failed to load project details');
+      setProject(null);
     }
-  }
+  }, [selectedProjectId, getProject]);
 
-  async function fetchAnalytics(projectId: string | null) {
+  const fetchAnalytics = useCallback(async (projectId: string | null) => {
     try {
       if (!projectId || projectId === 'all') {
-        const data = await analyticsApi.getAnalytics();
+        const data = await getAnalytics();
         return data;
       } else {
-        const data = await analyticsApi.getAnalytics({
+        const data = await getAnalytics({
           project_id: projectId,
         });
         return data;
@@ -73,37 +75,18 @@ export default function Dashboard() {
       console.error('Error fetching analytics:', error);
       throw error;
     }
-  }
+  }, [getAnalytics]);
 
-  async function createProject(data: { name: string; description: string }) {
-    try {
-      const response = await projectsApi.createProject({
-        name: data.name
-      });
-      
-      await fetchProjects();
-      return response;
-    } catch (error) {
-      console.error('Error creating project:', error);
-      throw new Error('Failed to create project');
-    }
-  }
-
-  useEffect(() => {
-    fetchProjects();
-    
-    // Read selected project from localStorage (set by layout)
-    const savedProject = localStorage.getItem('selectedProject');
+  useEffect(() => {    
+    const savedProject = localStorage.getItem('selected-project-id');
     if (savedProject) {
-      setSelectedProject(savedProject);
+      setSelectedProjectId(savedProject);
     }
 
-    // Add event listener for project change events
     const handleProjectChange = (e: CustomEvent<string>) => {
-      setSelectedProject(e.detail);
+      setSelectedProjectId(e.detail);
     };
 
-    // Listen for project change events
     window.addEventListener('projectChanged', handleProjectChange as EventListener);
 
     return () => {
@@ -111,21 +94,24 @@ export default function Dashboard() {
     };
   }, []);
 
-  // Re-fetch data when the pathname or query parameters change
   useEffect(() => {
-    // Read selected project from localStorage as it might have been updated by layout
-    const savedProject = localStorage.getItem('selectedProject');
-    if (savedProject && savedProject !== selectedProject) {
-      setSelectedProject(savedProject);
+    if (selectedProjectId) {
+      fetchProject();
     }
-  }, [pathname, selectedProject]);
+  }, [fetchProject, selectedProjectId]);
+
+  useEffect(() => {
+    const savedProject = localStorage.getItem('selected-project-id');
+    if (savedProject && savedProject !== selectedProjectId) {
+      setSelectedProjectId(savedProject);
+    }
+  }, [pathname, selectedProjectId]);
 
   useEffect(() => {
     async function loadAnalytics() {
-      if (selectedProject) {
-        setStatsLoading(true);
+      if (selectedProjectId) {
         try {
-          const stats = await fetchAnalytics(selectedProject);
+          const stats = await fetchAnalytics(selectedProjectId);
           setAnalyticsData(stats);
         } catch (error) {
           console.error("Failed to load analytics:", error);
@@ -135,24 +121,21 @@ export default function Dashboard() {
             total_duration: 0,
             total_installs: 0,
           });
-        } finally {
-          setStatsLoading(false);
         }
       }
     }
 
     loadAnalytics();
-  }, [selectedProject]);
+  }, [fetchAnalytics, selectedProjectId]);
 
   const onSubmit = async (data: CreateProjectFormData) => {
     try {
       const newProject = await createProject({
-        name: data.name,
-        description: data.description || ""
+        name: data.name
       });
       toast.success("Project created successfully!");
-      setSelectedProject(newProject.project_id);
-      localStorage.setItem('selectedProject', newProject.project_id);
+      setSelectedProjectId(newProject.project_id);
+      localStorage.setItem('selected-project-id', newProject.project_id);
       setOpenDialog(false);
       form.reset();
     } catch (error) {
@@ -162,31 +145,18 @@ export default function Dashboard() {
   };
 
   const goToEvents = () => {
-    if (selectedProject && selectedProject !== 'all') {
-      router.push(`/dashboard/events?projectId=${selectedProject}`);
+    if (selectedProjectId && selectedProjectId !== 'all') {
+      router.push(`/dashboard/events?projectId=${selectedProjectId}`);
     } else {
       router.push(`/dashboard/events`);
     }
   };
 
-  const formatDuration = (ns: number): string => {
-    const totalSeconds = Math.floor(ns / 1_000_000_000);
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const seconds = totalSeconds % 60;
-  
-    return `${hours}h ${minutes}m ${seconds}s`;
-  };
-
-  const currentProject = selectedProject && selectedProject !== 'all' 
-    ? projects.find(p => p.project_id === selectedProject) 
-    : null;
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight">
-          {selectedProject === 'all' ? 'Dashboard' : currentProject?.name || 'Dashboard'}
+          {selectedProjectId === 'all' ? 'Dashboard' : project?.name || 'Dashboard'}
         </h1>
         <Dialog open={openDialog} onOpenChange={setOpenDialog}>
           <DialogTrigger asChild>
@@ -217,19 +187,6 @@ export default function Dashboard() {
                     </FormItem>
                   )}
                 />
-                <FormField
-                  control={form.control}
-                  name="description"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Description</FormLabel>
-                      <FormControl>
-                        <Input placeholder="A description of your game" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
                 <DialogFooter>
                   <Button type="submit" disabled={form.formState.isSubmitting}>
                     {form.formState.isSubmitting ? "Creating..." : "Create Project"}
@@ -243,11 +200,11 @@ export default function Dashboard() {
 
       {projectsLoading ? (
         <Skeleton className="h-10 w-full max-w-xs" />
-      ) : projects.length === 0 ? (
+      ) : !selectedProjectId || selectedProjectId === 'all' ? (
         <div className="rounded-lg border p-8 text-center">
-          <h2 className="text-lg font-semibold">No projects found</h2>
+          <h2 className="text-lg font-semibold">No project selected</h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            Get started by creating your first project.
+            Please select a project from the dropdown or create a new one.
           </p>
           <Button className="mt-4" onClick={() => setOpenDialog(true)}>
             <LucidePlusCircle className="mr-2 h-4 w-4" />
@@ -256,7 +213,7 @@ export default function Dashboard() {
         </div>
       ) : null}
 
-      {selectedProject && (
+      {selectedProjectId && selectedProjectId !== 'all' && (
         <>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <Card>
@@ -265,7 +222,7 @@ export default function Dashboard() {
                 <LucideUsers className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                {statsLoading ? (
+                {analyticsLoading ? (
                   <Skeleton className="h-8 w-20" />
                 ) : (
                   <div className="text-2xl font-bold">{analyticsData?.dau || 0}</div>
@@ -278,7 +235,7 @@ export default function Dashboard() {
                 <LucideUsers className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                {statsLoading ? (
+                {analyticsLoading ? (
                   <Skeleton className="h-8 w-20" />
                 ) : (
                   <div className="text-2xl font-bold">{analyticsData?.mau || 0}</div>
@@ -291,7 +248,7 @@ export default function Dashboard() {
                 <LucideClock className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                {statsLoading ? (
+                {analyticsLoading ? (
                   <Skeleton className="h-8 w-20" />
                 ) : (
                   <div className="text-2xl font-bold">{formatDuration(analyticsData?.total_duration || 0)}</div>
@@ -304,7 +261,7 @@ export default function Dashboard() {
                 <LucideDownload className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                {statsLoading ? (
+                {analyticsLoading ? (
                   <Skeleton className="h-8 w-20" />
                 ) : (
                   <div className="text-2xl font-bold">{analyticsData?.total_installs || 0}</div>
@@ -313,7 +270,7 @@ export default function Dashboard() {
             </Card>
           </div>
 
-          {currentProject && (
+          {project && (
             <div className="mt-6 grid gap-4 md:grid-cols-2">
               <Card>
                 <CardHeader>
@@ -324,15 +281,15 @@ export default function Dashboard() {
                 </CardHeader>
                 <CardContent className="space-y-2">
                   <div>
-                    <span className="font-medium">Name:</span> {currentProject.name}
+                    <span className="font-medium">Name:</span> {project.name}
                   </div>
                   <div>
-                    <span className="font-medium">Created By:</span> {currentProject.owner_id}
+                    <span className="font-medium">Created By:</span> {project.owner?.name || project.owner?.email}
                   </div>
                   <div className="pt-2">
                     <span className="font-medium block mb-1">API Key:</span>
                     <code className="block rounded bg-muted p-2 text-sm">
-                      {currentProject.api_key}
+                      {project.api_key}
                     </code>
                   </div>
                 </CardContent>

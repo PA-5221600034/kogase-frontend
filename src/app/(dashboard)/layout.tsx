@@ -5,17 +5,12 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { LucideHome, LucideList, LucideLogOut } from "lucide-react";
 
-import { useAuth } from "@/lib/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { projectsApi } from "@/lib/api/projects";
-import { GetProjectResponse } from "@/lib/dtos/project_dto";
 
-interface Project {
-  id: string;
-  name: string;
-}
+import { useAuth, useProjects } from "@/lib/hooks";
+import { GetProjectResponse } from "@/lib/dtos";
 
 export default function DashboardLayout({
   children,
@@ -24,75 +19,56 @@ export default function DashboardLayout({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, loading, logout } = useAuth();
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [projectsLoading, setProjectsLoading] = useState(true);
-  const [selectedProject, setSelectedProject] = useState<string | null>(null);
+  const { me: user, loading: authLoading, logout } = useAuth();
+  const { getProjects, loading: projectsLoading } = useProjects();
+  const [projects, setProjects] = useState<GetProjectResponse[] | null>(null);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!loading && !user) {
+    if (!authLoading && !user) {
       router.push("/login");
     }
-  }, [user, loading, router]);
+  }, [user, authLoading, router]);
 
   useEffect(() => {
     async function loadProjects() {
-      setProjectsLoading(true);
       try {
-        const data = await projectsApi.getProjects();
-        // Map API response to our Project interface
-        const formattedProjects = data.projects.map((project: GetProjectResponse) => ({
-          id: project.project_id,
-          name: project.name
-        }));
-        setProjects(formattedProjects);
+        const data = await getProjects();
+        setProjects(data.projects);
         
-        // Try to get the selected project from localStorage
-        const savedProject = localStorage.getItem('selectedProject');
-        if (savedProject && (savedProject === 'all' || data.projects.some(p => p.project_id === savedProject))) {
-          setSelectedProject(savedProject);
-        } else if (data.projects.length > 0) {
-          // Default to the first project if nothing is saved or saved project doesn't exist
-          setSelectedProject(data.projects[0].project_id);
-          localStorage.setItem('selectedProject', data.projects[0].project_id);
+        const localStorageSelectedProjectId = localStorage.getItem('selected-project-id');
+        if (localStorageSelectedProjectId && (localStorageSelectedProjectId === 'all' || data.projects.some(p => p.project_id === localStorageSelectedProjectId))) {
+          setSelectedProjectId(localStorageSelectedProjectId);
         } else {
-          // Default to 'all' if no projects exist
-          setSelectedProject('all');
-          localStorage.setItem('selectedProject', 'all');
+          setSelectedProjectId('all');
+          localStorage.setItem('selected-project-id', 'all');
         }
       } catch (error) {
         console.error('Error fetching projects:', error);
-        setProjects([]);
-        setSelectedProject('all');
-        localStorage.setItem('selectedProject', 'all');
-      } finally {
-        setProjectsLoading(false);
+        setSelectedProjectId('all');
+        localStorage.setItem('selected-project-id', 'all');
       }
     }
 
     if (user) {
       loadProjects();
     }
-  }, [user]);
+  }, [user, getProjects]);
 
   const handleProjectChange = (value: string) => {
-    setSelectedProject(value);
-    localStorage.setItem('selectedProject', value);
+    setSelectedProjectId(value);
+    localStorage.setItem('selected-project-id', value);
     
-    // Dispatch a custom event to notify other components
     const event = new CustomEvent('projectChanged', { detail: value });
     window.dispatchEvent(event);
     
-    // Refresh the current path
     if (pathname.includes('?')) {
-      // If there are query parameters, update them
       const baseUrl = pathname.split('?')[0];
       const newPath = value === 'all' 
         ? baseUrl
         : `${baseUrl}?projectId=${value}`;
       router.push(newPath);
     } else {
-      // If there are no query parameters, just refresh the current page
       router.refresh();
     }
   };
@@ -102,7 +78,7 @@ export default function DashboardLayout({
     router.push("/login");
   };
 
-  if (loading) {
+  if (authLoading) {
     return (
       <div className="flex h-screen flex-col">
         <header className="border-b">
@@ -133,14 +109,13 @@ export default function DashboardLayout({
     );
   }
 
-  // Get the selected project name for the dashboard label
-  const selectedProjectName = selectedProject === 'all' 
+  const selectedProjectName = selectedProjectId === 'all' 
     ? "Dashboard" 
-    : projects.find(p => p.id === selectedProject)?.name || "Dashboard";
+    : projects?.find(p => p.project_id === selectedProjectId)?.name || "Dashboard";
 
   const navItems = [
     {
-      label: selectedProject === 'all' ? "Dashboard" : `${selectedProjectName}`,
+      label: selectedProjectId === 'all' ? "Dashboard" : `${selectedProjectName}`,
       href: "/dashboard",
       icon: LucideHome,
     },
@@ -157,23 +132,21 @@ export default function DashboardLayout({
         <div className="container flex h-16 items-center justify-between">
           <div className="flex items-center gap-4">
             <h1 className="text-xl font-bold">Kogase</h1>
-            {!projectsLoading && (
-              <div className="w-64">
-                <Select value={selectedProject || ""} onValueChange={handleProjectChange}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="Select a project" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Projects</SelectItem>
-                    {projects.map((project) => (
-                      <SelectItem key={project.id} value={project.id}>
-                        {project.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
+            <div className="w-64">
+              <Select value={selectedProjectId || ""} onValueChange={handleProjectChange} disabled={projectsLoading}>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder={projectsLoading ? "Loading projects..." : "Select a project"} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Projects</SelectItem>
+                  {projects?.map((project) => (
+                    <SelectItem key={project.project_id} value={project.project_id}>
+                      {project.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <div className="flex items-center gap-4">
             <span className="text-sm text-muted-foreground">
