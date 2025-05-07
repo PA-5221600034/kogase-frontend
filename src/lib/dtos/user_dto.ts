@@ -11,6 +11,7 @@ export interface CreateUserRequest {
 }
 
 export interface CreateUserResponse {
+  user_id: string;
   email: string;
   name: string;
 }
