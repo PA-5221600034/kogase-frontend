@@ -3,11 +3,25 @@
 import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LucideHome, LucideList, LucideLogOut, LucideMenu, LucideX, LucideChevronRight, LucideActivity } from "lucide-react";
+import {
+  LucideHome,
+  LucideList,
+  LucideLogOut,
+  LucideMenu,
+  LucideX,
+  LucideChevronRight,
+  LucideActivity,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -25,13 +39,46 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const { me: user, loading: authLoading, logout } = useAuth();
   const { getProjects, loading: projectLoading } = useProjects();
-  
+
   const [projects, setProjects] = useState<GetProjectResponse[]>([]);
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
+    null
+  );
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  
+
   // Use a ref to track initialization to prevent multiple API calls
   const initialized = useRef(false);
+
+  // Function to load projects - extracted to be reusable
+  const loadProjects = async () => {
+    try {
+      const data = await getProjects();
+      setProjects(data.projects);
+
+      // Get the selected project from localStorage
+      const localStorageSelectedProjectId = localStorage.getItem(
+        "selected-project-id"
+      );
+
+      // Set selected project id based on localStorage or default to 'all'
+      if (
+        localStorageSelectedProjectId &&
+        (localStorageSelectedProjectId === "all" ||
+          data.projects.some(
+            (p) => p.project_id === localStorageSelectedProjectId
+          ))
+      ) {
+        setSelectedProjectId(localStorageSelectedProjectId);
+      } else {
+        setSelectedProjectId("all");
+        localStorage.setItem("selected-project-id", "all");
+      }
+    } catch (error) {
+      console.error("Error fetching projects:", error);
+      setSelectedProjectId("all");
+      localStorage.setItem("selected-project-id", "all");
+    }
+  };
 
   // Effect for initial load and auth check
   useEffect(() => {
@@ -46,52 +93,48 @@ export default function DashboardLayout({
     if (user && !initialized.current) {
       // Set this immediately to prevent re-entry
       initialized.current = true;
-      
-      // Load projects
-      async function loadProjects() {
-        try {
-          const data = await getProjects();
-          setProjects(data.projects);
-          
-          // Get the selected project from localStorage
-          const localStorageSelectedProjectId = localStorage.getItem('selected-project-id');
-          
-          // Set selected project id based on localStorage or default to 'all'
-          if (localStorageSelectedProjectId && 
-              (localStorageSelectedProjectId === 'all' || 
-               data.projects.some(p => p.project_id === localStorageSelectedProjectId))) {
-            setSelectedProjectId(localStorageSelectedProjectId);
-          } else {
-            setSelectedProjectId('all');
-            localStorage.setItem('selected-project-id', 'all');
-          }
-        } catch (error) {
-          console.error('Error fetching projects:', error);
-          setSelectedProjectId('all');
-          localStorage.setItem('selected-project-id', 'all');
-        }
-      }
-      
       loadProjects();
     }
-  }, [user, getProjects]);
+  }, [user]);
+
+  // Effect to listen for project creation events
+  useEffect(() => {
+    // Setup event listener for project creation
+    const handleProjectCreated = () => {
+      // Reload the projects list
+      loadProjects();
+    };
+
+    // Add event listener
+    window.addEventListener(
+      "projectCreated",
+      handleProjectCreated as EventListener
+    );
+
+    // Clean up event listener
+    return () => {
+      window.removeEventListener(
+        "projectCreated",
+        handleProjectCreated as EventListener
+      );
+    };
+  }, []);
 
   const handleProjectChange = (value: string) => {
     // Only proceed if the value has actually changed
     if (value !== selectedProjectId) {
       setSelectedProjectId(value);
-      localStorage.setItem('selected-project-id', value);
-      
+      localStorage.setItem("selected-project-id", value);
+
       // Dispatch a custom event to notify other components
-      const event = new CustomEvent('projectChanged', { detail: value });
+      const event = new CustomEvent("projectChanged", { detail: value });
       window.dispatchEvent(event);
-      
+
       // Navigation updates
-      if (pathname.includes('?')) {
-        const baseUrl = pathname.split('?')[0];
-        const newPath = value === 'all' 
-          ? baseUrl
-          : `${baseUrl}?projectId=${value}`;
+      if (pathname.includes("?")) {
+        const baseUrl = pathname.split("?")[0];
+        const newPath =
+          value === "all" ? baseUrl : `${baseUrl}?projectId=${value}`;
         router.push(newPath);
       } else {
         router.refresh();
@@ -100,7 +143,7 @@ export default function DashboardLayout({
   };
 
   const handleLogout = async () => {
-    await logout();
+    logout();
     router.push("/login");
   };
 
@@ -137,13 +180,16 @@ export default function DashboardLayout({
   }
 
   // Get the selected project name for the dashboard label
-  const selectedProjectName = selectedProjectId === 'all' 
-    ? "Dashboard" 
-    : projects?.find(p => p.project_id === selectedProjectId)?.name || "Dashboard";
+  const selectedProjectName =
+    selectedProjectId === "all"
+      ? "Dashboard"
+      : projects?.find((p) => p.project_id === selectedProjectId)?.name ||
+        "Dashboard";
 
   const navItems = [
     {
-      label: selectedProjectId === 'all' ? "Dashboard" : `${selectedProjectName}`,
+      label:
+        selectedProjectId === "all" ? "Dashboard" : `${selectedProjectName}`,
       href: "/dashboard",
       icon: LucideHome,
     },
@@ -163,7 +209,7 @@ export default function DashboardLayout({
     if (!name) return "U";
     return name
       .split(" ")
-      .map(n => n[0])
+      .map((n) => n[0])
       .join("")
       .toUpperCase()
       .substring(0, 2);
@@ -187,7 +233,11 @@ export default function DashboardLayout({
           </div>
           <div className="flex items-center gap-2">
             <ThemeToggle />
-            <Button variant="ghost" size="icon" onClick={() => setIsMobileMenuOpen(false)}>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsMobileMenuOpen(false)}
+            >
               <LucideX className="h-4 w-4" />
             </Button>
           </div>
@@ -195,22 +245,31 @@ export default function DashboardLayout({
         <ScrollArea className="h-[calc(100vh-65px)]">
           <div className="p-5">
             <div className="mb-5 space-y-1">
-              <p className="text-xs text-muted-foreground mb-1.5 font-medium px-2">PROJECT</p>
-              <Select 
-                value={selectedProjectId || ""} 
+              <p className="text-xs text-muted-foreground mb-1.5 font-medium px-2">
+                PROJECT
+              </p>
+              <Select
+                value={selectedProjectId || ""}
                 onValueChange={(value) => {
                   handleProjectChange(value);
                   setIsMobileMenuOpen(false);
-                }} 
+                }}
                 disabled={projectLoading}
               >
                 <SelectTrigger className="h-9 w-full">
-                  <SelectValue placeholder={projectLoading ? "Loading..." : "Select a project"} />
+                  <SelectValue
+                    placeholder={
+                      projectLoading ? "Loading..." : "Select a project"
+                    }
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Projects</SelectItem>
                   {projects?.map((project) => (
-                    <SelectItem key={project.project_id} value={project.project_id}>
+                    <SelectItem
+                      key={project.project_id}
+                      value={project.project_id}
+                    >
                       {project.name}
                     </SelectItem>
                   ))}
@@ -250,11 +309,20 @@ export default function DashboardLayout({
                   </AvatarFallback>
                 </Avatar>
                 <div className="overflow-hidden">
-                  <p className="text-sm font-medium truncate">{user?.name || 'User'}</p>
-                  <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+                  <p className="text-sm font-medium truncate">
+                    {user?.name || "User"}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {user?.email}
+                  </p>
                 </div>
               </div>
-              <Button variant="outline" size="sm" onClick={handleLogout} className="w-full justify-start">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleLogout}
+                className="w-full justify-start"
+              >
                 <LucideLogOut className="mr-2 h-4 w-4" />
                 Log out
               </Button>
@@ -280,18 +348,27 @@ export default function DashboardLayout({
               </div>
             </div>
             <div className="hidden md:block w-72">
-              <Select 
-                value={selectedProjectId || ""} 
-                onValueChange={handleProjectChange} 
+              <Select
+                value={selectedProjectId || ""}
+                onValueChange={handleProjectChange}
                 disabled={projectLoading}
               >
                 <SelectTrigger className="h-9 border-dashed">
-                  <SelectValue placeholder={projectLoading ? "Loading projects..." : "Select a project"} />
+                  <SelectValue
+                    placeholder={
+                      projectLoading
+                        ? "Loading projects..."
+                        : "Select a project"
+                    }
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Projects</SelectItem>
                   {projects?.map((project) => (
-                    <SelectItem key={project.project_id} value={project.project_id}>
+                    <SelectItem
+                      key={project.project_id}
+                      value={project.project_id}
+                    >
                       {project.name}
                     </SelectItem>
                   ))}
@@ -308,18 +385,27 @@ export default function DashboardLayout({
                 </AvatarFallback>
               </Avatar>
               <div className="text-sm mr-1">
-                <p className="font-medium leading-none">{user?.name || user?.email}</p>
-                {user?.name && <p className="text-xs text-muted-foreground">{user?.email}</p>}
+                <p className="font-medium leading-none">
+                  {user?.name || user?.email}
+                </p>
+                {user?.name && (
+                  <p className="text-xs text-muted-foreground">{user?.email}</p>
+                )}
               </div>
             </div>
-            <Button variant="outline" size="sm" onClick={handleLogout} className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleLogout}
+              className="flex items-center gap-2"
+            >
               <LucideLogOut className="h-4 w-4" />
               Log out
             </Button>
           </div>
         </div>
       </header>
-      
+
       <div className="flex flex-1">
         <aside className="hidden md:block w-64 border-r pt-6 min-h-[calc(100vh-4rem)] shrink-0">
           <div className="px-3 pb-2">
@@ -347,9 +433,7 @@ export default function DashboardLayout({
             </nav>
           </div>
         </aside>
-        <main className="flex-1 p-4 md:p-8 w-full">
-          {children}
-        </main>
+        <main className="flex-1 p-4 md:p-8 w-full">{children}</main>
       </div>
     </div>
   );

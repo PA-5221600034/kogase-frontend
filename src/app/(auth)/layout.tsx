@@ -20,19 +20,19 @@ export default function AuthLayout({
             </div>
             <h1 className="text-3xl font-bold tracking-tight">Kogase</h1>
             <p className="text-sm text-muted-foreground max-w-xs">
-              Komu{"'"}s Game Service - Analytics and tracking for game developers
+              Komu{"'"}s Game Service
             </p>
           </div>
-          
+
           <div className="backdrop-blur-sm bg-card/90 rounded-xl border shadow-sm overflow-hidden">
             {children}
           </div>
-          
+
           <div className="mt-8 text-center text-xs text-muted-foreground">
-            <p>© 2023 Kogase. All rights reserved.</p>
+            <p>© 2025 Kogase. All rights reserved.</p>
           </div>
         </div>
       </div>
     </div>
   );
-} 
+}

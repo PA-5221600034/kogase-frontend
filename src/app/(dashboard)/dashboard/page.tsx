@@ -11,20 +11,45 @@ import {
   LucideChevronRight,
   LucideCode,
   LucideBarChart3,
-  LucideSettings
+  LucideSettings,
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-import { createProjectSchema, type CreateProjectFormData } from "@/lib/validators/projects";
+import {
+  createProjectSchema,
+  type CreateProjectFormData,
+} from "@/lib/validators/projects";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProjects, useAnalytics } from "@/lib/hooks";
 import { GetProjectResponseDetail } from "@/lib/dtos/project_dto";
@@ -38,12 +63,14 @@ export default function Dashboard() {
   const { getAnalytics, loading: analyticsLoading } = useAnalytics();
   const [project, setProject] = useState<GetProjectResponseDetail | null>(null);
   const [analytics, setAnalytics] = useState<GetAnalyticsResponse | null>(null);
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
+    null
+  );
   const [openDialog, setOpenDialog] = useState(false);
-  
+
   const isLoadingProject = useRef(false);
   const isLoadingAnalytics = useRef(false);
-  
+
   const form = useForm<CreateProjectFormData>({
     resolver: zodResolver(createProjectSchema),
     defaultValues: {
@@ -51,9 +78,8 @@ export default function Dashboard() {
     },
   });
 
-
-  useEffect(() => {    
-    const savedProject = localStorage.getItem('selected-project-id');
+  useEffect(() => {
+    const savedProject = localStorage.getItem("selected-project-id");
     if (savedProject) {
       setSelectedProjectId(savedProject);
     }
@@ -62,15 +88,21 @@ export default function Dashboard() {
       setSelectedProjectId(e.detail);
     };
 
-    window.addEventListener('projectChanged', handleProjectChange as EventListener);
+    window.addEventListener(
+      "projectChanged",
+      handleProjectChange as EventListener
+    );
 
     return () => {
-      window.removeEventListener('projectChanged', handleProjectChange as EventListener);
+      window.removeEventListener(
+        "projectChanged",
+        handleProjectChange as EventListener
+      );
     };
   }, []);
 
   useEffect(() => {
-    const savedProject = localStorage.getItem('selected-project-id');
+    const savedProject = localStorage.getItem("selected-project-id");
     if (savedProject && savedProject !== selectedProjectId) {
       setSelectedProjectId(savedProject);
     }
@@ -78,17 +110,17 @@ export default function Dashboard() {
 
   async function loadProject() {
     isLoadingProject.current = true;
-    
+
     try {
-      if (selectedProjectId && selectedProjectId !== 'all') {
+      if (selectedProjectId && selectedProjectId !== "all") {
         const response = await getProject(selectedProjectId);
         setProject(response);
       } else {
         setProject(null);
       }
     } catch (error) {
-      console.error('Error fetching project details:', error);
-      toast.error('Failed to load project details');
+      console.error("Error fetching project details:", error);
+      toast.error("Failed to load project details");
       setProject(null);
     } finally {
       isLoadingProject.current = false;
@@ -99,10 +131,11 @@ export default function Dashboard() {
     isLoadingAnalytics.current = true;
 
     try {
-      const data = selectedProjectId === 'all' || !selectedProjectId 
-        ? await getAnalytics() 
-        : await getAnalytics({ project_id: selectedProjectId });  
-      
+      const data =
+        selectedProjectId === "all" || !selectedProjectId
+          ? await getAnalytics()
+          : await getAnalytics({ project_id: selectedProjectId });
+
       setAnalytics(data);
     } catch (error) {
       console.error("Failed to load analytics:", error);
@@ -114,22 +147,26 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!selectedProjectId) return;
-    
+
     if (isLoadingProject.current) return;
-  
+
     loadProject();
     loadAnalytics();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProjectId]);
 
   const onSubmit = async (data: CreateProjectFormData) => {
     try {
       const newProject = await createProject({
-        name: data.name
+        name: data.name,
       });
       toast.success("Project created successfully!");
       setSelectedProjectId(newProject.project_id);
-      localStorage.setItem('selected-project-id', newProject.project_id);
+      localStorage.setItem("selected-project-id", newProject.project_id);
+
+      // Dispatch custom event to notify that a project was created
+      window.dispatchEvent(new CustomEvent("projectCreated"));
+
       setOpenDialog(false);
       form.reset();
     } catch (error) {
@@ -139,7 +176,7 @@ export default function Dashboard() {
   };
 
   const goToEvents = () => {
-    if (selectedProjectId && selectedProjectId !== 'all') {
+    if (selectedProjectId && selectedProjectId !== "all") {
       router.push(`/dashboard/events?projectId=${selectedProjectId}`);
     } else {
       router.push(`/dashboard/events`);
@@ -151,14 +188,16 @@ export default function Dashboard() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 w-full">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">
-            {selectedProjectId === 'all' ? 'Dashboard' : project?.name || 'Dashboard'}
+            {selectedProjectId === "all"
+              ? "Dashboard"
+              : project?.name || "Dashboard"}
           </h1>
           <p className="text-muted-foreground mt-1">
-            {selectedProjectId === 'all' 
-              ? 'Overview of all your projects' 
-              : project 
-                ? `Detailed analytics for ${project.name}` 
-                : 'Loading project details...'}
+            {selectedProjectId === "all"
+              ? "Overview of all your projects"
+              : project
+              ? `Detailed analytics for ${project.name}`
+              : "Loading project details..."}
           </p>
         </div>
         <Dialog open={openDialog} onOpenChange={setOpenDialog}>
@@ -176,7 +215,10 @@ export default function Dashboard() {
               </DialogDescription>
             </DialogHeader>
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <form
+                onSubmit={form.handleSubmit(onSubmit)}
+                className="space-y-4"
+              >
                 <FormField
                   control={form.control}
                   name="name"
@@ -191,8 +233,14 @@ export default function Dashboard() {
                   )}
                 />
                 <DialogFooter>
-                  <Button type="submit" disabled={form.formState.isSubmitting} className="w-full sm:w-auto">
-                    {form.formState.isSubmitting ? "Creating..." : "Create Project"}
+                  <Button
+                    type="submit"
+                    disabled={form.formState.isSubmitting}
+                    className="w-full sm:w-auto"
+                  >
+                    {form.formState.isSubmitting
+                      ? "Creating..."
+                      : "Create Project"}
                   </Button>
                 </DialogFooter>
               </form>
@@ -201,23 +249,24 @@ export default function Dashboard() {
         </Dialog>
       </div>
 
-      {projectsLoading 
-        ? (
-          <div className="space-y-6 w-full">
-            <Skeleton className="h-10 w-full max-w-xs" />
-            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 w-full">
-              {[...Array(4)].map((_, i) => (
-                <Skeleton key={i} className="h-32 w-full rounded-xl" />
-              ))}
-            </div>
+      {projectsLoading ? (
+        <div className="space-y-6 w-full">
+          <Skeleton className="h-10 w-full max-w-xs" />
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 w-full">
+            {[...Array(4)].map((_, i) => (
+              <Skeleton key={i} className="h-32 w-full rounded-xl" />
+            ))}
           </div>
-        ) 
-        : selectedProjectId && (
+        </div>
+      ) : (
+        selectedProjectId && (
           <>
             <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 w-full">
               <Card className="overflow-hidden border-border/50 transition-all hover:shadow-md hover:border-border">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-muted/30">
-                  <CardTitle className="text-sm font-medium">Daily Active Users</CardTitle>
+                  <CardTitle className="text-sm font-medium">
+                    Daily Active Users
+                  </CardTitle>
                   <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
                     <LucideUsers className="h-4 w-4 text-primary" />
                   </div>
@@ -226,13 +275,17 @@ export default function Dashboard() {
                   {analyticsLoading ? (
                     <Skeleton className="h-8 w-20" />
                   ) : (
-                    <div className="text-2xl font-bold">{analytics?.dau || 0}</div>
+                    <div className="text-2xl font-bold">
+                      {analytics?.dau || 0}
+                    </div>
                   )}
                 </CardContent>
               </Card>
               <Card className="overflow-hidden border-border/50 transition-all hover:shadow-md hover:border-border">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-muted/30">
-                  <CardTitle className="text-sm font-medium">Monthly Active Users</CardTitle>
+                  <CardTitle className="text-sm font-medium">
+                    Monthly Active Users
+                  </CardTitle>
                   <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
                     <LucideUsers className="h-4 w-4 text-primary" />
                   </div>
@@ -241,13 +294,17 @@ export default function Dashboard() {
                   {analyticsLoading ? (
                     <Skeleton className="h-8 w-20" />
                   ) : (
-                    <div className="text-2xl font-bold">{analytics?.mau || 0}</div>
+                    <div className="text-2xl font-bold">
+                      {analytics?.mau || 0}
+                    </div>
                   )}
                 </CardContent>
               </Card>
               <Card className="overflow-hidden border-border/50 transition-all hover:shadow-md hover:border-border">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-muted/30">
-                  <CardTitle className="text-sm font-medium">Total Session Duration</CardTitle>
+                  <CardTitle className="text-sm font-medium">
+                    Total Session Duration
+                  </CardTitle>
                   <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
                     <LucideClock className="h-4 w-4 text-primary" />
                   </div>
@@ -256,13 +313,17 @@ export default function Dashboard() {
                   {analyticsLoading ? (
                     <Skeleton className="h-8 w-20" />
                   ) : (
-                    <div className="text-2xl font-bold">{formatDuration(analytics?.total_duration || 0)}</div>
+                    <div className="text-2xl font-bold">
+                      {formatDuration(analytics?.total_duration || 0)}
+                    </div>
                   )}
                 </CardContent>
               </Card>
               <Card className="overflow-hidden border-border/50 transition-all hover:shadow-md hover:border-border">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-muted/30">
-                  <CardTitle className="text-sm font-medium">Total Installs</CardTitle>
+                  <CardTitle className="text-sm font-medium">
+                    Total Installs
+                  </CardTitle>
                   <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
                     <LucideDownload className="h-4 w-4 text-primary" />
                   </div>
@@ -271,12 +332,14 @@ export default function Dashboard() {
                   {analyticsLoading ? (
                     <Skeleton className="h-8 w-20" />
                   ) : (
-                    <div className="text-2xl font-bold">{analytics?.total_installs || 0}</div>
+                    <div className="text-2xl font-bold">
+                      {analytics?.total_installs || 0}
+                    </div>
                   )}
                 </CardContent>
               </Card>
             </div>
-  
+
             {project && (
               <div className="mt-6 grid gap-4 md:grid-cols-2 w-full">
                 <Card className="border-border/50 transition-all hover:shadow-md hover:border-border overflow-hidden">
@@ -291,15 +354,21 @@ export default function Dashboard() {
                   </CardHeader>
                   <CardContent className="space-y-2 pt-6">
                     <div className="flex items-center justify-between border-b pb-2">
-                      <span className="font-medium text-muted-foreground">Name</span>
+                      <span className="font-medium text-muted-foreground">
+                        Name
+                      </span>
                       <span>{project.name}</span>
                     </div>
                     <div className="flex items-center justify-between border-b pb-2">
-                      <span className="font-medium text-muted-foreground">Created By</span>
+                      <span className="font-medium text-muted-foreground">
+                        Created By
+                      </span>
                       <span>{project.owner?.name || project.owner?.email}</span>
                     </div>
                     <div className="pt-4">
-                      <span className="font-medium text-muted-foreground block mb-2">API Key</span>
+                      <span className="font-medium text-muted-foreground block mb-2">
+                        API Key
+                      </span>
                       <div className="flex overflow-hidden">
                         <ScrollArea className="max-w-full">
                           <code className="block rounded bg-muted p-3 text-sm">
@@ -310,7 +379,11 @@ export default function Dashboard() {
                     </div>
                   </CardContent>
                   <CardFooter className="flex justify-between border-t pt-5 bg-muted/20">
-                    <Button variant="outline" onClick={goToEvents} className="group flex items-center gap-2 transition-all">
+                    <Button
+                      variant="outline"
+                      onClick={goToEvents}
+                      className="group flex items-center gap-2 transition-all"
+                    >
                       <LucideActivity className="h-4 w-4 text-primary" />
                       Explore Events
                       <LucideChevronRight className="h-4 w-4 opacity-0 -ml-4 group-hover:opacity-100 group-hover:ml-0 transition-all" />
@@ -334,9 +407,12 @@ export default function Dashboard() {
                           <LucideCode className="h-3.5 w-3.5 text-primary" />
                         </div>
                         <div>
-                          <h3 className="font-semibold">1. Integrate the SDK</h3>
+                          <h3 className="font-semibold">
+                            1. Integrate the SDK
+                          </h3>
                           <p className="mt-1 text-sm text-muted-foreground">
-                            Use our Unity SDK to start tracking events in your game.
+                            Use our Unity SDK to start tracking events in your
+                            game.
                           </p>
                         </div>
                       </div>
@@ -349,7 +425,8 @@ export default function Dashboard() {
                         <div>
                           <h3 className="font-semibold">2. Track Key Events</h3>
                           <p className="mt-1 text-sm text-muted-foreground">
-                            Track game starts, level completions, and in-app purchases.
+                            Track game starts, level completions, and in-app
+                            purchases.
                           </p>
                         </div>
                       </div>
@@ -360,9 +437,12 @@ export default function Dashboard() {
                           <LucideBarChart3 className="h-3.5 w-3.5 text-primary" />
                         </div>
                         <div>
-                          <h3 className="font-semibold">3. Analyze Your Data</h3>
+                          <h3 className="font-semibold">
+                            3. Analyze Your Data
+                          </h3>
                           <p className="mt-1 text-sm text-muted-foreground">
-                            Use the dashboard to gain insights about player behavior.
+                            Use the dashboard to gain insights about player
+                            behavior.
                           </p>
                         </div>
                       </div>
@@ -380,8 +460,8 @@ export default function Dashboard() {
               </div>
             )}
           </>
-        ) 
-      }
+        )
+      )}
     </div>
   );
-} 
+}
