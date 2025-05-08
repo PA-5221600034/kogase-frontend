@@ -1,5 +1,7 @@
 "use client";
 
+import { ThemeToggle } from "@/components/ui/theme-toggle";
+
 export default function AuthLayout({
   children,
 }: {
@@ -7,6 +9,9 @@ export default function AuthLayout({
 }) {
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-background to-muted/50">
+      <div className="absolute top-4 right-4">
+        <ThemeToggle />
+      </div>
       <div className="flex flex-1 items-center justify-center p-4 md:p-8">
         <div className="w-full max-w-md">
           <div className="mb-8 flex flex-col items-center text-center space-y-2">

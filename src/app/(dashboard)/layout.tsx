@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 import { useAuth, useProjects } from "@/lib/hooks";
 import { GetProjectResponse } from "@/lib/dtos";
@@ -184,9 +185,12 @@ export default function DashboardLayout({
             </div>
             <h2 className="text-lg font-bold">Kogase</h2>
           </div>
-          <Button variant="ghost" size="icon" onClick={() => setIsMobileMenuOpen(false)}>
-            <LucideX className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <Button variant="ghost" size="icon" onClick={() => setIsMobileMenuOpen(false)}>
+              <LucideX className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
         <ScrollArea className="h-[calc(100vh-65px)]">
           <div className="p-5">
@@ -296,6 +300,7 @@ export default function DashboardLayout({
             </div>
           </div>
           <div className="hidden md:flex items-center gap-3 ml-auto">
+            <ThemeToggle />
             <div className="flex items-center gap-3">
               <Avatar className="h-8 w-8">
                 <AvatarFallback className="bg-primary/10 text-primary text-xs">
